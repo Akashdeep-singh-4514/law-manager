@@ -1,4 +1,4 @@
-import { initializeLogger, logger } from "@rasla/logify";
+import { initializeLogger, logger,error } from "@rasla/logify";
 
 
 initializeLogger({
@@ -7,5 +7,8 @@ initializeLogger({
     file: true,
     filePath: "./logs/app.log",
 });
+export function logError(e: unknown){
+    error(e instanceof Error ? e.message : String(e));
+}
 
 export { logger }
