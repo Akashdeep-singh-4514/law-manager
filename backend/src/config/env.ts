@@ -3,7 +3,9 @@ import dotenv from "dotenv";
 const result = dotenv.config();
 
 if (result.error) {
-    throw new Error(`Failed to load .env file: ${result.error.message}`);
+    throw new Error(
+        `Failed to load .env file: ${result.error.message}`
+    );
 }
 
 type Environment = "development" | "test" | "production";
@@ -14,15 +16,22 @@ type AppEnv = {
     environment: Environment;
 };
 
+type DbEnv = {
+    url: string;
+};
+
 type Env = {
     appConf: Readonly<AppEnv>;
+    dbConf: Readonly<DbEnv>;
 };
 
 function getRequiredEnv(name: string): string {
     const value = process.env[name]?.trim();
 
     if (!value) {
-        throw new Error(`Missing required environment variable: ${name}`);
+        throw new Error(
+            `Missing required environment variable: ${name}`
+        );
     }
 
     return value;
@@ -101,6 +110,11 @@ const appConf: Readonly<AppEnv> = Object.freeze({
     environment: getEnvironment(),
 });
 
+const dbConf: Readonly<DbEnv> = Object.freeze({
+    url: getRequiredEnv("DATABASE_URL"),
+});
+
 export const env: Env = Object.freeze({
     appConf,
+    dbConf,
 });
