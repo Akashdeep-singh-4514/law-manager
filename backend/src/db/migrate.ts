@@ -1,4 +1,4 @@
-import { existsSync,readdirSync } from "fs";
+import { existsSync, readdirSync } from "fs";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { db } from "./index";
 
@@ -7,9 +7,9 @@ const migrationsFolder = "./drizzle";
 async function runMigrations() {
 
     if (!existsSync(migrationsFolder)) {
-    console.log("⚠️ Migrations folder does not exist. Skipping migration.");
-    return;
-  }
+        console.log("⚠️ Migrations folder does not exist. Skipping migration.");
+        return;
+    }
 
     const files = readdirSync(migrationsFolder).filter((f) => f.endsWith(".sql"));
 
@@ -22,5 +22,15 @@ async function runMigrations() {
     await migrate(db, { migrationsFolder });
     console.log("✅ Migrations completed successfully.");
 }
+
+async function main() {
+    await runMigrations();
+    process.exit(0);
+}
+
+main().catch((err) => {
+    console.error("❌ Migration failed:", err);
+    process.exit(1);
+});
 
 export { runMigrations }
