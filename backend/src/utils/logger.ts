@@ -7,7 +7,8 @@ initializeLogger({
     file: true,
     filePath: "./logs/app.log",
 });
-export function logError(e: unknown){
+export function logError(e: unknown, process: string) {
+    error(`${process} failed`)
     error(e instanceof Error ? e.message : String(e));
 }
 

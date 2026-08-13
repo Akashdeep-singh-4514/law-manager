@@ -1,5 +1,5 @@
 {
-  "id": "8980f3be-e48f-4ee6-acdd-34dd49fc4cd8",
+  "id": "8ec03e88-2f6a-4f52-9ddc-1693235bb0e9",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -29,7 +29,6 @@
         "role": {
           "name": "role",
           "type": "admin_role",
-          "typeSchema": "public",
           "primaryKey": false,
           "notNull": true,
           "default": "'admin'"
@@ -158,7 +157,16 @@
       "isRLSEnabled": false
     }
   },
-  "enums": {},
+  "enums": {
+    "public.admin_role": {
+      "name": "admin_role",
+      "schema": "public",
+      "values": [
+        "super_admin",
+        "admin"
+      ]
+    }
+  },
   "schemas": {},
   "sequences": {},
   "roles": {},

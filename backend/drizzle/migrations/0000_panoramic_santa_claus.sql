@@ -1,3 +1,4 @@
+CREATE TYPE "public"."admin_role" AS ENUM('super_admin', 'admin');--> statement-breakpoint
 CREATE TABLE "admins" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"name" text NOT NULL,

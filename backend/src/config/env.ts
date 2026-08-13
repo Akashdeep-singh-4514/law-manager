@@ -20,9 +20,16 @@ type DbEnv = {
     url: string;
 };
 
+type AdminEnv = {
+    email: string;
+    password: string;
+    name: string;
+}
+
 type Env = {
     appConf: Readonly<AppEnv>;
     dbConf: Readonly<DbEnv>;
+    adminConf: Readonly<AdminEnv>;
 };
 
 function getRequiredEnv(name: string): string {
@@ -114,7 +121,15 @@ const dbConf: Readonly<DbEnv> = Object.freeze({
     url: getRequiredEnv("DATABASE_URL"),
 });
 
+const adminConf: Readonly<AdminEnv> = Object.freeze({
+    name: getRequiredEnv("SUPER_ADMIN_NAME"),
+    password: getRequiredEnv("SUPER_ADMIN_PASSWORD"),
+    email: getRequiredEnv("SUPER_ADMIN_EMAIL"),
+
+})
+
 export const env: Env = Object.freeze({
     appConf,
     dbConf,
+    adminConf
 });

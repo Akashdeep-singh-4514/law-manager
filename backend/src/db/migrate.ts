@@ -1,36 +1,37 @@
 import { existsSync, readdirSync } from "fs";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { db } from "./index";
+import { info } from "@rasla/logify";
+import { logError } from "../utils/logger";
 
-const migrationsFolder = "./drizzle";
+const migrationsFolder = "./drizzle/migrations";
 
 async function runMigrations() {
-
     if (!existsSync(migrationsFolder)) {
-        console.log("⚠️ Migrations folder does not exist. Skipping migration.");
+        info("⚠️ Migrations folder does not exist. Skipping migration.");
         return;
     }
 
     const files = readdirSync(migrationsFolder).filter((f) => f.endsWith(".sql"));
 
     if (files.length === 0) {
-        console.log("⚠️ No migration files found. Skipping migration.");
+        info("⚠️ No migration files found. Skipping migration.");
         return;
     }
 
-    console.log(`🚀 Running ${files.length} migration(s)...`);
+    info(`🚀 Running ${files.length} migration(s)...`);
     await migrate(db, { migrationsFolder });
-    console.log("✅ Migrations completed successfully.");
+    info("✅ Migrations completed successfully.");
 }
 
 async function main() {
     await runMigrations();
-    process.exit(0);
+    return;
 }
 
 main().catch((err) => {
-    console.error("❌ Migration failed:", err);
+    logError(err, "Migrations");
     process.exit(1);
 });
 
-export { runMigrations }
+export { runMigrations };

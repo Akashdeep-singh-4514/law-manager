@@ -43,8 +43,7 @@ async function bootstrap() {
     process.on("SIGTERM", shutdown);
 
   } catch (e) {
-    error("❌ Application startup failed");
-    logError(e)
+    logError(e, "Application startup")
 
     process.exit(1);
   }
