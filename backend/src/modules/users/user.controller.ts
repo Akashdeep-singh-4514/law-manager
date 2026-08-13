@@ -16,7 +16,7 @@ export class UsersController {
                 return this.usersService.getUsers();
             })
 
-            .get("/:id", ({ params, set }) => {
+            .get("/:id", ({ params }) => {
                 const response = this.usersService.getUserById(
                     Number(params.id),
                 );

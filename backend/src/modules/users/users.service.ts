@@ -1,5 +1,5 @@
 export class UsersService {
-    getUsers(): any {
+    getUsers(): {data:[]} {
         return {data:[]}
     }
     getUserById(id: number) {
