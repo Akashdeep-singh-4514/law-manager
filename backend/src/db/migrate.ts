@@ -1,5 +1,4 @@
 import { existsSync,readdirSync } from "fs";
-import { join } from "path";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { db } from "./index";
 

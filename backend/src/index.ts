@@ -12,12 +12,10 @@ import { logError } from "./utils/logger";
 
 async function bootstrap() {
   try {
-    console.log("Starting application...");
+    info("Starting application...");
 
     await connectDatabase();
-    debug("reached here 1")
     await runMigrations();
-    debug("reached here 2")
 
     await runSeeders();
 
@@ -32,7 +30,7 @@ async function bootstrap() {
     );
 
     const shutdown = async () => {
-      console.log("Shutting down...");
+      info("Shutting down...");
 
       app.stop();
 

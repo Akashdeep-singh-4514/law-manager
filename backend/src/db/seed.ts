@@ -1,6 +1,6 @@
 import { info } from "@rasla/logify";
-import { db } from "./index";
-import { users } from "./schema";
+// import { db } from "./index";
+// import { users } from "./schema";
 
 export async function runSeeders() {
     info("Running database seeders...");
