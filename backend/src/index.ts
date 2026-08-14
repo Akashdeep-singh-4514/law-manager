@@ -6,6 +6,7 @@ import { connectDatabase, closeDatabase } from "./db";
 import { runMigrations } from "./db/migrate";
 import { runSeeders } from "./db/seed";
 import { logError } from "./utils/logger";
+import { responseMiddleware } from "./utils/middleware";
 
 async function bootstrap() {
     try {
@@ -21,6 +22,7 @@ async function bootstrap() {
             .onRequest(({ request }) => {
                 info(`REQUEST URL: ${JSON.stringify(request.url)}`);
             })
+            .use(responseMiddleware)
             .use(mainRouter)
             .get("/", () => "ok")
             .listen(env.appConf.port);
