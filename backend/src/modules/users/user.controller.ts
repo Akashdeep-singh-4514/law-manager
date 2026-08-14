@@ -12,16 +12,12 @@ export class UsersController {
         return new Elysia({
             prefix: "/users",
         })
-            .get("/", () => {
-                return this.usersService.getUsers();
+            .get("/", async () => {
+                return await this.usersService.getUsers();
             })
 
-            .get("/:id", ({ params }) => {
-                const response = this.usersService.getUserById(
-                    Number(params.id),
-                );
-
-                return response;
+            .get("/:id", async ({ params }) => {
+                return await this.usersService.getUserById(Number(params.id));
             });
     }
 }

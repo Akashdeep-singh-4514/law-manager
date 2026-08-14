@@ -1,9 +1,17 @@
+import { UsersRepository } from "./users.repository";
+
 export class UsersService {
-    getUsers(): {data:[]} {
-        return {data:[]}
+    private readonly usersRepository: UsersRepository;
+
+    constructor() {
+        this.usersRepository = new UsersRepository();
     }
-    getUserById(id: number) {
-        return {id}
+
+    async getUsers() {
+        return this.usersRepository.findAll();
     }
-    
+
+    async getUserById(id: number) {
+        return this.usersRepository.findById(id);
+    }
 }
