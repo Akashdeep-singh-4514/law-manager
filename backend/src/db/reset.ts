@@ -1,6 +1,6 @@
 import { env } from "../config/env";
 import { info, error } from "@rasla/logify";
-import { db, connectDatabase, closeDatabase } from "./index";
+import { db, connectDatabase } from "./index";
 import { sql } from "drizzle-orm";
 import { runMigrations } from "./migrate";
 import { runSeeders } from "./seed";
@@ -46,13 +46,8 @@ async function resetDatabase() {
 
         info("Database reset complete.");
         process.exit(0)
-    } catch (e: any) {
-        console.error("=== RAW ERROR DUMP ===");
-        console.error(e);
-        console.error("=== e.message ===", e?.message);
-        console.error("=== e.cause ===", e?.cause);
-        console.error("=== e.cause?.message ===", e?.cause?.message);
-        console.error("=== e.cause?.cause ===", e?.cause?.cause);
+    } catch (e) {
+        logError(e,"=== RAW ERROR DUMP ===");
         process.exit(1);
     }
 }

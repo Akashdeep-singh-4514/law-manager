@@ -16,6 +16,7 @@ export class UsersRepository {
             .from(users)
             .where(eq(users.id, id))
             .limit(1);
+
         return result[0] ?? null;
     }
     async create(user: User): Promise<PublicUser | null> {

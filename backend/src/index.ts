@@ -1,6 +1,6 @@
 import { Elysia } from "elysia";
 import { env } from "./config/env";
-import { info, logger, error, debug } from "@rasla/logify";
+import { info, logger } from "@rasla/logify";
 import { mainRouter } from "./router";
 import { connectDatabase, closeDatabase } from "./db";
 import { runMigrations } from "./db/migrate";

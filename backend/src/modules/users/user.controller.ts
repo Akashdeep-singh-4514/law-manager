@@ -1,5 +1,5 @@
 import { Elysia, t } from "elysia";
-import { users, type User } from "./users.schema";
+import { type User } from "./users.schema";
 import { UsersService } from "./users.service";
 import { logError } from "../../utils/logger";
 

@@ -14,12 +14,12 @@ export const users = pgTable("users", {
     isActive: boolean(),
     devices: text("devices").array().default([]).notNull(),
     createdAt: timestamp("created_at")
-    .defaultNow()
-    .notNull(),
+        .defaultNow()
+        .notNull(),
     updatedAt: timestamp("updated_at")
-    .defaultNow()
-    .$onUpdate(() => new Date())
-    .notNull(),
+        .defaultNow()
+        .$onUpdate(() => new Date())
+        .notNull(),
 });
 
 export type User = typeof users.$inferSelect;
