@@ -18,6 +18,7 @@ type AppEnv = {
 
 type DbEnv = {
     url: string;
+    confirmReset: string;
 };
 
 type AdminEnv = {
@@ -119,6 +120,7 @@ const appConf: Readonly<AppEnv> = Object.freeze({
 
 const dbConf: Readonly<DbEnv> = Object.freeze({
     url: getRequiredEnv("DATABASE_URL"),
+    confirmReset: getRequiredEnv("CONFIRM_RESET")
 });
 
 const adminConf: Readonly<AdminEnv> = Object.freeze({

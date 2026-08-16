@@ -3,7 +3,7 @@ import { adminSeeder } from "./seeders/admin.seeder";
 
 export async function runSeeders() {
     info("Running database seeders...");
-    adminSeeder()
+    await adminSeeder()
 
     info("✓ Database seeders completed");
 }
