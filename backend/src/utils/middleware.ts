@@ -1,4 +1,4 @@
-import { Elysia, status } from "elysia";
+import { Elysia } from "elysia";
 
 export const responseMiddleware = new Elysia()
     .onAfterHandle({ as: "global" }, ({ response }) => {

@@ -1,8 +1,10 @@
 import { Elysia, t } from "elysia";
-import { type CreateUser } from "./users.schema";
+import { type CreateUser, type updateUser } from "./users.schema";
 import { UsersService } from "./users.service";
 import { logError } from "../../utils/logger";
-import { usersValidator } from "./user.validate";
+import { usersPostValidator, usersUpdateValidator } from "./user.validate";
+import { HTTPCodes, MyError } from "../../utils/errorHandling";
+import { idValidator } from "../../utils/validator";
 
 export class UsersController {
     private readonly usersService: UsersService;
@@ -25,6 +27,9 @@ export class UsersController {
             })
             .get("/:id", async ({ params }) => {
                 try {
+                    if (!params.id) {
+                        throw new MyError("id is required",HTTPCodes.BAD_REQUEST)
+                    }
                     return await this.usersService.getUserById(Number(params.id));
                 } catch (e) {
                     logError(e, "getting user by id")
@@ -35,7 +40,7 @@ export class UsersController {
                 try {
                     const res = await this.usersService.postUser(body as CreateUser);
                     if (!res) {
-                        set.status = 304
+                        set.status = HTTPCodes.NOT_MODIFIED
                     }
                     return res
                 } catch (e) {
@@ -44,7 +49,25 @@ export class UsersController {
                 }
             },
                 {
-                    body: usersValidator
+                    body: usersPostValidator
                 },)
+            .patch("/:id", async ({ body, set, params }) => {
+                try {
+                    if (!params.id) {
+                        throw new MyError("id is required",HTTPCodes.BAD_REQUEST)
+                    }
+                    const res = await this.usersService.patchUser(params.id,body as updateUser);
+                    if (!res) {
+                        set.status = HTTPCodes.NOT_MODIFIED
+                    }
+                    return res
+                } catch (e) {
+                    logError(e, "updating user")
+                    throw e;
+                }
+            }, {
+                body: usersUpdateValidator,
+                params: idValidator
+            })
     }
 }

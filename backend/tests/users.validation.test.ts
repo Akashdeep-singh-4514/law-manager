@@ -1,6 +1,6 @@
 import { describe, it, expect } from "bun:test";
 import { Value } from "@sinclair/typebox/value";
-import { usersValidator as createUserBody } from "../src/modules/users/user.validate";
+import { usersPostValidator as createUserBody } from "../src/modules/users/user.validate";
 
 const validPayload = {
     name: "Jane Doe",

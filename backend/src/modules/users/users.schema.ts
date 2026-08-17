@@ -38,4 +38,11 @@ export type CreateUser = {
     dialCode: string;
     mobile:string;
 }
-export type CreateUserBody = Static<typeof users>;
+
+export type updateUser = {
+    name?: string;
+    email?: string;
+    dialCode?: string;
+    mobile?:string;
+    isActive?:boolean
+}

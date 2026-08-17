@@ -1,10 +1,11 @@
 import { hashPassword } from "../../utils/bcrypt";
-import { ErrorCodes, MyError } from "../../utils/errorHandling";
+import { HTTPCodes, MyError } from "../../utils/errorHandling";
 import { UsersRepository } from "./users.repository";
-import type { CreateUser, PublicUser } from "./users.schema";
+import type { CreateUser, PublicUser, updateUser } from "./users.schema";
 import { NotFoundError } from "elysia";
 
 export class UsersService {
+    
     private readonly usersRepository: UsersRepository;
     
     constructor() {
@@ -28,12 +29,71 @@ export class UsersService {
         const password=await hashPassword(user.password)
         const newUser={...user , password}
         if (await this.usersRepository.findByEmail(user.email)) {
-            throw (new MyError("email already exists",ErrorCodes.CONFLICT))
+            throw (new MyError("email already exists",HTTPCodes.CONFLICT))
         }
         if (await this.usersRepository.findByMobile(user.dialCode,user.mobile)) {
-            throw (new MyError("mobile number already exists",ErrorCodes.CONFLICT))
+            throw (new MyError("mobile number already exists",HTTPCodes.CONFLICT))
         }
         const result= await this.usersRepository.create(newUser)
         return result
     }
+
+    async patchUser(
+    id: number,
+    user: updateUser
+): Promise<PublicUser | null> {
+
+    const existingUser = await this.usersRepository.findById(id);
+
+    if (!existingUser) {
+        throw new NotFoundError(`user with id ${id} not found`);
+    }
+
+    if (user.email && user.email !== existingUser.email) {
+        const emailExists =
+            await this.usersRepository.findByEmail(user.email);
+
+        if (emailExists && emailExists.id !== id) {
+            throw new MyError(
+                "email already exists",
+                HTTPCodes.CONFLICT
+            );
+        }
+    }
+    const dialCode =
+        user.dialCode ?? existingUser.dialCode;
+
+    const mobile =
+        user.mobile ?? existingUser.mobile;
+
+    if (
+        mobile &&
+        dialCode
+    ) {
+        const mobileExists =
+            await this.usersRepository.findByMobile(
+                dialCode,
+                mobile
+            );
+
+        if (mobileExists && mobileExists.id !== id) {
+            throw new MyError(
+                "mobile number already exists",
+                HTTPCodes.CONFLICT
+            );
+        }
+    }
+
+    const updateData = {
+        name:user.name,
+        email:user.email,
+        dialCode:user.dialCode,
+        mobile:user.mobile,
+        isActive:user.isActive
+
+    };
+
+
+    return await this.usersRepository.update(id, updateData);
+} 
 }
