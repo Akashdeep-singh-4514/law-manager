@@ -8,7 +8,7 @@ import { logError } from "../utils/logger";
 
 async function resetDatabase() {
     // Hard guard — this must never run outside dev, no matter how it's invoked.
-    if (env.appConf.environment !== "development") {
+    if (env.appConf.environment === "production" || env.appConf.environment === "staging" ) {
         error(
             `Refusing to reset database: NODE_ENV is "${env.appConf.environment}", not "development".`,
         );

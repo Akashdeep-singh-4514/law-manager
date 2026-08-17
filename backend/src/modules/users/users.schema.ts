@@ -6,6 +6,7 @@ import {
     timestamp,
     unique,
 } from "drizzle-orm/pg-core";
+import type { Static } from "elysia";
 
 export const users = pgTable("users", {
     id: serial("id").primaryKey(),
@@ -37,3 +38,4 @@ export type CreateUser = {
     dialCode: string;
     mobile:string;
 }
+export type CreateUserBody = Static<typeof users>;

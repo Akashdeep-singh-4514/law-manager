@@ -8,7 +8,7 @@ if (result.error) {
     );
 }
 
-type Environment = "development" | "test" | "production";
+type Environment = "development" | "test" | "production" | "staging";
 
 type AppEnv = {
     port: number;
@@ -19,6 +19,7 @@ type AppEnv = {
 type DbEnv = {
     url: string;
     confirmReset: string;
+    testUrl:string;
 };
 
 type AdminEnv = {
@@ -120,6 +121,7 @@ const appConf: Readonly<AppEnv> = Object.freeze({
 
 const dbConf: Readonly<DbEnv> = Object.freeze({
     url: getRequiredEnv("DATABASE_URL"),
+    testUrl: getRequiredEnv("TEST_DATABASE_URL"),
     confirmReset: getRequiredEnv("CONFIRM_RESET")
 });
 

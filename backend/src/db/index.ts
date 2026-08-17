@@ -3,7 +3,8 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import { env } from "../config/env";
 import { info, error } from "@rasla/logify";
 
-const client = postgres(env.dbConf.url);
+const isTestEnvironment = env.appConf.environment ==="test"
+const client = postgres(isTestEnvironment?env.dbConf.testUrl:env.dbConf.url);
 
 export const db = drizzle(client);
 

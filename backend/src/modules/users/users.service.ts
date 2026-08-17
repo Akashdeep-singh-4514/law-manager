@@ -28,10 +28,10 @@ export class UsersService {
         const password=await hashPassword(user.password)
         const newUser={...user , password}
         if (await this.usersRepository.findByEmail(user.email)) {
-            throw (new MyError("email already exists").toResponse(ErrorCodes.CONFLICT))
+            throw (new MyError("email already exists",ErrorCodes.CONFLICT))
         }
         if (await this.usersRepository.findByMobile(user.dialCode,user.mobile)) {
-            throw (new MyError("mobile number already exists").toResponse(ErrorCodes.CONFLICT))
+            throw (new MyError("mobile number already exists",ErrorCodes.CONFLICT))
         }
         const result= await this.usersRepository.create(newUser)
         return result
