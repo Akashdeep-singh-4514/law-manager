@@ -72,13 +72,18 @@ function humanizeValidationMessage(
         return `${field} format is invalid`;
     }
 
-    if (typeof schema.minLength === "number") {
-        return `${field} must be at least ${schema.minLength} characters long`;
+    if (typeof schema.maxLength === "number" && typeof schema.minLength === "number") {
+        return `${field} must be ${schema.minLength}-${schema.maxLength} characters long`;
     }
 
     if (typeof schema.maxLength === "number") {
         return `${field} must be at most ${schema.maxLength} characters long`;
     }
+
+    if (typeof schema.minLength === "number") {
+        return `${field} must be at least ${schema.minLength} characters long`;
+    }
+
 
     return err.message || `${field} is invalid`;
 }

@@ -61,7 +61,7 @@ describe("createUserBody schema", () => {
             const errors = errorsFor({ ...validPayload, password: "short1" });
             const passwordError = errors.find((e) => e.path === "/password");
             expect(passwordError?.schema.error).toBe(
-                "Password must be at least 8 characters long"
+                "Password must be 8-12 characters long"
             );
         });
     });

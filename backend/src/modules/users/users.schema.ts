@@ -45,4 +45,9 @@ export type updateUser = {
     dialCode?: string;
     mobile?:string;
     isActive?:boolean
+    password?:string
+}
+
+export type updatePassword={
+    password:string
 }

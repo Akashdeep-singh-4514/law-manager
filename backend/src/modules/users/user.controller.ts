@@ -1,10 +1,10 @@
 import { Elysia, t } from "elysia";
-import { type CreateUser, type updateUser } from "./users.schema";
+import { type CreateUser, type updatePassword, type updateUser } from "./users.schema";
 import { UsersService } from "./users.service";
 import { logError } from "../../utils/logger";
 import { usersPostValidator, usersUpdateValidator } from "./user.validate";
 import { HTTPCodes, MyError } from "../../utils/errorHandling";
-import { idValidator } from "../../utils/validator";
+import { idValidator, passwordValidator } from "../../utils/validator";
 
 export class UsersController {
     private readonly usersService: UsersService;
@@ -68,6 +68,26 @@ export class UsersController {
             }, {
                 body: usersUpdateValidator,
                 params: idValidator
+            })
+            .patch("/:id/password", async ({body,set,params})=>{
+                try {
+                    if (!params.id) {
+                        throw new MyError("id is required",HTTPCodes.BAD_REQUEST)
+                    }
+                    const res = await this.usersService.updatePassword(Number(params.id),body as updatePassword);
+                    if (!res) {
+                        set.status = HTTPCodes.NOT_MODIFIED
+                    }
+                    return res
+                } catch (e) {
+                    logError(e, "updating user password")
+                    throw e;
+                }
+            },{
+                body:t.Object({
+                    password:passwordValidator()
+                }),
+                params:idValidator
             })
     }
 }

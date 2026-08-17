@@ -35,7 +35,8 @@ export function emailValidator() {
 export function passwordValidator() {
     return t.String({
         minLength: 8,
-        error: "Password must be at least 8 characters long",
+        maxLength:12,
+        error: "Password must be 8-12 characters long",
     });
 }
 
