@@ -1,6 +1,6 @@
 import { db } from "../../db";
 import { users, type CreateUser, type PublicUser } from "./users.schema";
-import { eq, getTableColumns } from "drizzle-orm";
+import { and, eq, getTableColumns } from "drizzle-orm";
 
 
 const { password, ...safeColumns } = getTableColumns(users);
@@ -20,16 +20,25 @@ export class UsersRepository {
         return result[0] ?? null;
     }
 
-    async findByEmail(email: string){
+    async findByEmail(email: string) {
         const result = await db
             .select(safeColumns)
             .from(users)
-            .where(eq(users.email,email ))
+            .where(eq(users.email, email))
             .limit(1);
 
         return result[0] ?? null;
     }
 
+    async findByMobile(dialCode: string, mobile: string) {
+        const result = await db
+            .select(safeColumns)
+            .from(users)
+            .where(and(eq(users.dialCode, dialCode), eq(users.mobile, mobile)))
+            .limit(1);
+
+        return result[0] ?? null;
+    }
     async create(user: CreateUser): Promise<PublicUser | null> {
         const result = await db
             .insert(users)
