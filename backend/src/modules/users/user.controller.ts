@@ -39,7 +39,7 @@ export class UsersController {
                     }
                     return res
                 } catch (e) {
-                    logError(e, "getting users")
+                    logError(e, "creating user")
                     throw e;
                 }
             },
