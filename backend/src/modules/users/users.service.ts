@@ -1,6 +1,7 @@
 import { hashPassword } from "../../utils/bcrypt";
+import { ErrorCodes, MyError } from "../../utils/errorHandling";
 import { UsersRepository } from "./users.repository";
-import type { PublicUser, User } from "./users.schema";
+import type { CreateUser, PublicUser } from "./users.schema";
 import { NotFoundError } from "elysia";
 
 export class UsersService {
@@ -22,9 +23,12 @@ export class UsersService {
         }
         return result
     }
-    async postUser(user: User): Promise<PublicUser| null> {
+    async postUser(user: CreateUser): Promise<PublicUser| null> {
         const password=await hashPassword(user.password)
         const newUser={...user , password}
+        if (await this.usersRepository.findByEmail(user.email)) {
+            throw (new MyError("email already exists").toResponse(ErrorCodes.CONFLICT))
+        }
         const result= await this.usersRepository.create(newUser)
         return result
     }

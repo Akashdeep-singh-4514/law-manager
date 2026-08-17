@@ -1,5 +1,5 @@
 import { db } from "../../db";
-import { users, type PublicUser, type User } from "./users.schema";
+import { users, type CreateUser, type PublicUser } from "./users.schema";
 import { eq, getTableColumns } from "drizzle-orm";
 
 
@@ -19,7 +19,18 @@ export class UsersRepository {
 
         return result[0] ?? null;
     }
-    async create(user: User): Promise<PublicUser | null> {
+
+    async findByEmail(email: string){
+        const result = await db
+            .select(safeColumns)
+            .from(users)
+            .where(eq(users.email,email ))
+            .limit(1);
+
+        return result[0] ?? null;
+    }
+
+    async create(user: CreateUser): Promise<PublicUser | null> {
         const result = await db
             .insert(users)
             .values(user)

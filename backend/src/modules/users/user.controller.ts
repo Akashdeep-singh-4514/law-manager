@@ -1,5 +1,5 @@
 import { Elysia, t } from "elysia";
-import { type User } from "./users.schema";
+import { type CreateUser } from "./users.schema";
 import { UsersService } from "./users.service";
 import { logError } from "../../utils/logger";
 
@@ -32,7 +32,7 @@ export class UsersController {
             })
             .post("/", async ({ body, set }) => {
                 try {
-                    const res = await this.usersService.postUser(body as User);
+                    const res = await this.usersService.postUser(body as CreateUser);
                     if (!res) {
                         set.status = 304
                     }
@@ -45,7 +45,9 @@ export class UsersController {
                 {
                     body: t.Object({
                         name: t.String({ minLength: 1, maxLength: 255 }),
-                        email: t.String({ format: "email" }),
+                        email: t.Transform(t.String({ format: "email" }))
+                            .Decode((value) => value.toLowerCase())
+                            .Encode((value) => value),
                         password: t.String({ minLength: 8 }),
                         isActive: t.Optional(t.Boolean()),
                         devices: t.Optional(t.Array(t.String())),
