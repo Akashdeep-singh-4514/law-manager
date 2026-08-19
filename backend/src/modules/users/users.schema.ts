@@ -6,7 +6,6 @@ import {
     timestamp,
     unique,
 } from "drizzle-orm/pg-core";
-import type { Static } from "elysia";
 
 export const users = pgTable("users", {
     id: serial("id").primaryKey(),
@@ -30,7 +29,6 @@ export const users = pgTable("users", {
 
 export type User = typeof users.$inferSelect;
 export type PublicUser = Omit<User, "password">;
-export type NewUser = typeof users.$inferInsert;
 export type CreateUser = {
     name: string;
     email: string;

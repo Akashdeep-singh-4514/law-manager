@@ -2,8 +2,6 @@ import {
     describe,
     it,
     expect,
-    beforeAll,
-    afterAll,
     afterEach,
 } from "bun:test";
 
@@ -11,8 +9,6 @@ import { eq } from "drizzle-orm";
 
 import { buildTestApp } from "./build-app";
 import {
-    connectDatabase,
-    closeDatabase,
     db,
 } from "../src/db";
 
@@ -124,13 +120,6 @@ async function del(
     );
 }
 
-beforeAll(async () => {
-    await connectDatabase();
-});
-
-afterAll(async () => {
-    await closeDatabase();
-});
 
 afterEach(async () => {
 

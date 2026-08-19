@@ -38,12 +38,10 @@ export class UsersController {
             }, {
                 params:idValidator
             })
-            .post("/", async ({ body, set }) => {
+            .post("/", async ({ body }) => {
                 try {
                     const res = await this.usersService.postUser(body as CreateUser);
-                    if (!res) {
-                        set.status = HTTPCodes.NOT_MODIFIED
-                    }
+
                     return res
                 } catch (e) {
                     logError(e, "creating user")
@@ -53,15 +51,13 @@ export class UsersController {
                 {
                     body: usersPostValidator
                 },)
-            .patch("/:id", async ({ body, set, params }) => {
+            .patch("/:id", async ({ body, params }) => {
                 try {
                     if (!params.id) {
                         throw new MyError("id is required",HTTPCodes.BAD_REQUEST)
                     }
                     const res = await this.usersService.patchUser(params.id,body as updateUser);
-                    if (!res) {
-                        set.status = HTTPCodes.NOT_MODIFIED
-                    }
+
                     return res
                 } catch (e) {
                     logError(e, "updating user")
@@ -71,15 +67,13 @@ export class UsersController {
                 body: usersUpdateValidator,
                 params: idValidator
             })
-            .patch("/:id/password", async ({body,set,params})=>{
+            .patch("/:id/password", async ({body,params})=>{
                 try {
                     if (!params.id) {
                         throw new MyError("id is required",HTTPCodes.BAD_REQUEST)
                     }
                     const res = await this.usersService.updatePassword(Number(params.id),body as updatePassword);
-                    if (!res) {
-                        set.status = HTTPCodes.NOT_MODIFIED
-                    }
+
                     return res
                 } catch (e) {
                     logError(e, "updating user password")
@@ -90,15 +84,13 @@ export class UsersController {
                     password:passwordValidator()
                 }),
                 params:idValidator
-            }).delete("/:id", async ({set,params})=>{
+            }).delete("/:id", async ({params})=>{
                 try {
                     if (!params.id) {
                         throw new MyError("id is required",HTTPCodes.BAD_REQUEST)
                     }
                     const res = await this.usersService.deleteUser(Number(params.id));
-                    if (!res) {
-                        set.status = HTTPCodes.NOT_MODIFIED
-                    }
+
                     return res
                 } catch (e) {
                     logError(e, "deleting user")

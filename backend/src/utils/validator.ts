@@ -32,11 +32,11 @@ export function emailValidator() {
         .Encode((value) => value);
 }
 
+
 export function passwordValidator() {
     return t.String({
         minLength: 8,
-        maxLength:12,
-        error: "Password must be 8-12 characters long",
+        error: "Password must be at least 8 characters long",
     });
 }
 
@@ -65,4 +65,3 @@ export function booleanValidator() {
 export function stringArrayValidator() {
     return t.Array(t.String());
 }
-

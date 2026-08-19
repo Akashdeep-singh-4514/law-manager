@@ -6,7 +6,7 @@ import {
     mobileValidator,
     nameValidator,
     passwordValidator,
-    stringArrayValidator
+    stringArrayValidator,
 } from "../../utils/validator";
 
 export const usersPostValidator = t.Object({
@@ -28,4 +28,13 @@ export const usersUpdateValidator = t.Object({
     mobile: t.Optional(mobileValidator()),
 });
 
+export const userEmailLoginValidator = t.Object({
+    email: emailValidator(),
+    password: passwordValidator(),
+});
 
+export const userMobileLoginValidator = t.Object({
+    dialCode: dialCodeValidator(),
+    mobile: mobileValidator(),
+    password: passwordValidator(),
+});

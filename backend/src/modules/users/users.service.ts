@@ -98,4 +98,20 @@ export class UsersService {
         const res = await this.usersRepository.delete(id);
         return res;
     }
+
+    async getUserByEmailUnsafe(email: string) {
+        const user = await this.usersRepository.findByEmailUnsafe(email);
+        if (!user) {
+            throw new MyError(`user  not found`, HTTPCodes.NOT_FOUND);
+        }
+        return user;
+    }
+
+    async getUserByPhoneUnsafe(dialcode: string, mobile: string) {
+        const user = await this.usersRepository.findByPhoneUnsafe(dialcode,mobile);
+        if (!user) {
+            throw new MyError(`user  not found`, HTTPCodes.NOT_FOUND);
+        }
+        return user;
+    }
 }
