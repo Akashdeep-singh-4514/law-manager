@@ -35,6 +35,8 @@ export class UsersController {
                     logError(e, "getting user by id")
                     throw e;
                 }
+            }, {
+                params:idValidator
             })
             .post("/", async ({ body, set }) => {
                 try {
@@ -88,6 +90,23 @@ export class UsersController {
                     password:passwordValidator()
                 }),
                 params:idValidator
+            }).delete("/:id", async ({set,params})=>{
+                try {
+                    if (!params.id) {
+                        throw new MyError("id is required",HTTPCodes.BAD_REQUEST)
+                    }
+                    const res = await this.usersService.deleteUser(Number(params.id));
+                    if (!res) {
+                        set.status = HTTPCodes.NOT_MODIFIED
+                    }
+                    return res
+                } catch (e) {
+                    logError(e, "deleting user")
+                    throw e;
+                }
+            },{
+                params:idValidator
             })
+
     }
 }

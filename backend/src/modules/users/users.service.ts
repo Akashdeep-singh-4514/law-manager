@@ -5,8 +5,6 @@ import type { CreateUser, PublicUser, updatePassword, updateUser } from "./users
 import { NotFoundError } from "elysia";
 
 export class UsersService {
-
-
     private readonly usersRepository: UsersRepository;
 
     constructor() {
@@ -15,37 +13,42 @@ export class UsersService {
 
     async getUsers() {
         const result = await this.usersRepository.findAll();
-        return result
+        return result;
     }
 
     async getUserById(id: number) {
         const result = await this.usersRepository.findById(id);
         if (!result) {
-            throw new NotFoundError(`user with id ${id} not found`)
+            throw new NotFoundError(`user with id ${id} not found`);
         }
-        return result
+        return result;
     }
 
     async postUser(user: CreateUser): Promise<PublicUser | null> {
-        const password = await hashPassword(user.password)
-        const newUser = { ...user, password }
+        const password = await hashPassword(user.password);
+        const newUser = {
+            name: user.name,
+            email: user.email,
+            dialCode: user.dialCode,
+            mobile: user.mobile,
+            password: password,
+        };
         if (await this.usersRepository.findByEmail(user.email)) {
-            throw (new MyError("email already exists", HTTPCodes.CONFLICT))
+            throw new MyError("email already exists", HTTPCodes.CONFLICT);
         }
         if (await this.usersRepository.findByMobile(user.dialCode, user.mobile)) {
-            throw (new MyError("mobile number already exists", HTTPCodes.CONFLICT))
+            throw new MyError("mobile number already exists", HTTPCodes.CONFLICT);
         }
-        const result = await this.usersRepository.create(newUser)
-        return result
+        const result = await this.usersRepository.create(newUser);
+        return result;
     }
 
-    async patchUser(
-        id: number,
-        user: updateUser
-    ): Promise<PublicUser | null> {
-
+    async patchUser(id: number, user: updateUser): Promise<PublicUser | null> {
+        if (Object.keys(user).length === 0) {
+            throw new MyError("Nothing to update", HTTPCodes.BAD_REQUEST);
+        }
         if (user.password) {
-            throw new MyError("password cannot be updated by",HTTPCodes.BAD_REQUEST)
+            throw new MyError("password cannot be updated by", HTTPCodes.BAD_REQUEST);
         }
         const existingUser = await this.usersRepository.findById(id);
 
@@ -54,37 +57,21 @@ export class UsersService {
         }
 
         if (user.email && user.email !== existingUser.email) {
-            const emailExists =
-                await this.usersRepository.findByEmail(user.email);
+            const emailExists = await this.usersRepository.findByEmail(user.email);
 
             if (emailExists && emailExists.id !== id) {
-                throw new MyError(
-                    "email already exists",
-                    HTTPCodes.CONFLICT
-                );
+                throw new MyError("email already exists", HTTPCodes.CONFLICT);
             }
         }
-        const dialCode =
-            user.dialCode ?? existingUser.dialCode;
+        const dialCode = user.dialCode?.toString() ?? existingUser?.dialCode?.toString();
 
-        const mobile =
-            user.mobile ?? existingUser.mobile;
+        const mobile = user.mobile?.toString() ?? existingUser?.mobile?.toString();
 
-        if (
-            mobile &&
-            dialCode
-        ) {
-            const mobileExists =
-                await this.usersRepository.findByMobile(
-                    dialCode,
-                    mobile
-                );
+        if (mobile && dialCode) {
+            const mobileExists = await this.usersRepository.findByMobile(dialCode, mobile);
 
             if (mobileExists && mobileExists.id !== id) {
-                throw new MyError(
-                    "mobile number already exists",
-                    HTTPCodes.CONFLICT
-                );
+                throw new MyError("mobile number already exists", HTTPCodes.CONFLICT);
             }
         }
 
@@ -93,15 +80,22 @@ export class UsersService {
             email: user.email,
             dialCode: user.dialCode,
             mobile: user.mobile,
-            isActive: user.isActive
-
+            isActive: user.isActive,
         };
-
 
         return await this.usersRepository.update(id, updateData);
     }
-    async updatePassword(id: number, data: updatePassword):Promise<PublicUser| null> {
-        const password = await hashPassword(data.password)
-        return await this.usersRepository.update(id,{password:password})
+    async updatePassword(id: number, data: updatePassword): Promise<PublicUser | null> {
+        const password = await hashPassword(data.password);
+        return await this.usersRepository.update(id, { password: password });
+    }
+
+    async deleteUser(id: number) {
+        const user = await this.usersRepository.findById(id);
+        if (!user) {
+            throw new MyError(`user with id ${id} not found`, HTTPCodes.NOT_FOUND);
+        }
+        const res = await this.usersRepository.delete(id);
+        return res;
     }
 }

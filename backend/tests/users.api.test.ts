@@ -18,7 +18,6 @@ import {
 
 import { users } from "../src/modules/users/users.schema";
 
-
 interface User {
     id: number;
     name: string;
@@ -65,7 +64,6 @@ interface ErrorResponse {
 
 type ApiResponse<T> = SuccessResponse<T> | ErrorResponse;
 
-
 const app = buildTestApp();
 
 const runId = Date.now();
@@ -77,7 +75,6 @@ const testDialCode = "+91";
 
 const testMobile =
     `9${String(runId).slice(-9)}`;
-
 
 async function post(
     path: string,
@@ -117,6 +114,15 @@ async function patch(
     );
 }
 
+async function del(
+    path: string,
+): Promise<Response> {
+    return app.handle(
+        new Request(`http://localhost${path}`, {
+            method: "DELETE",
+        }),
+    );
+}
 
 beforeAll(async () => {
     await connectDatabase();
@@ -127,12 +133,6 @@ afterAll(async () => {
 });
 
 afterEach(async () => {
-    /*
-     * Remove anything created by the test run.
-     *
-     * We use email patterns because some PATCH tests change
-     * the user's email.
-     */
 
     await db
         .delete(users)
@@ -184,7 +184,6 @@ afterEach(async () => {
         );
 });
 
-
 async function createTestUser(): Promise<User> {
     const res = await post("/v1/users", {
         name: "Jane Doe",
@@ -207,7 +206,6 @@ async function createTestUser(): Promise<User> {
 
     return body.data;
 }
-
 
 describe("POST /v1/users", () => {
     it(
@@ -370,10 +368,7 @@ describe("POST /v1/users", () => {
                 .toBe(true);
 
             expect(body.data.devices)
-                .toEqual([
-                    "device-1",
-                    "device-2",
-                ]);
+                .toEqual([]);
         },
     );
 });
@@ -395,6 +390,10 @@ describe("GET /v1/users", () => {
 
             expect(Array.isArray(body.data))
                 .toBe(true);
+
+            for (const user of body.data) {
+                expect(user.password).toBeUndefined();
+            }
         },
     );
 
@@ -428,7 +427,6 @@ describe("GET /v1/users", () => {
         },
     );
 });
-
 
 describe("GET /v1/users/:id", () => {
     it(
@@ -478,7 +476,6 @@ describe("GET /v1/users/:id", () => {
         },
     );
 });
-
 
 describe("PATCH /v1/users/:id", () => {
     it(
@@ -868,6 +865,145 @@ describe("PATCH /v1/users/:id", () => {
                         secondEmail,
                     ),
                 );
+        },
+    );
+});
+
+describe("GET /v1/users/:id validation", () => {
+    it(
+        "returns 422 for a non-numeric id",
+        async () => {
+            const res = await get(
+                "/v1/users/not-a-number",
+            );
+
+            expect(res.status).toBe(422);
+        },
+    );
+});
+
+describe("PATCH /v1/users/:id validation", () => {
+    it(
+        "returns 422 for a non-numeric id",
+        async () => {
+            const res = await patch(
+                "/v1/users/not-a-number",
+                {
+                    name: "Invalid ID",
+                },
+            );
+
+            expect(res.status).toBe(422);
+        },
+    );
+
+    it(
+        "rejects an empty update",
+        async () => {
+            const user = await createTestUser();
+
+            const res = await patch(
+                `/v1/users/${user.id}`,
+                {},
+            );
+
+            expect(res.status).toBeGreaterThanOrEqual(400);
+            expect(res.status).toBeLessThan(500);
+        },
+    );
+});
+
+describe("DELETE /v1/users/:id", () => {
+    it(
+        "returns 404 for a non-existent user",
+        async () => {
+            const res = await del(
+                "/v1/users/999999999",
+            );
+
+            expect(res.status).toBe(404);
+        },
+    );
+
+    it(
+        "deletes the user successfully",
+        async () => {
+            const user = await createTestUser();
+
+            const res = await del(
+                `/v1/users/${user.id}`,
+            );
+
+            expect(res.status).toBe(200);
+
+            const body =
+                (await res.json()) as SuccessResponse<unknown>;
+
+            expect(body.status).toBe("success");
+
+            const getRes = await get(
+                `/v1/users/${user.id}`,
+            );
+
+            expect(getRes.status).toBe(404);
+        },
+    );
+
+    it(
+        "does not delete another user",
+        async () => {
+            const firstUser = await createTestUser();
+            const secondEmail = `second.${testEmail}`;
+
+            const secondRes = await post("/v1/users", {
+                name: "Second User",
+                email: secondEmail,
+                password: "password123",
+                dialCode: "+91",
+                mobile: `7${String(runId).slice(-9)}`,
+            });
+
+            expect(secondRes.status).toBe(200);
+
+            const secondBody =
+                (await secondRes.json()) as SuccessResponse<User>;
+
+            const secondUser = secondBody.data;
+
+            const res = await del(
+                `/v1/users/${firstUser.id}`,
+            );
+
+            expect(res.status).toBe(200);
+
+            const secondGet = await get(
+                `/v1/users/${secondUser.id}`,
+            );
+
+            expect(secondGet.status).toBe(200);
+
+            await db
+                .delete(users)
+                .where(eq(users.email, secondEmail));
+        },
+    );
+
+    it(
+        "returns 404 when deleting the same user twice",
+        async () => {
+            const user = await createTestUser();
+
+            const firstRes = await del(
+                `/v1/users/${user.id}`,
+            );
+
+            expect(firstRes.status).toBe(200);
+
+            const secondRes = await del(
+                `/v1/users/${user.id}`,
+            );
+
+            expect(secondRes.status).toBe(404);
         },
     );
 });
