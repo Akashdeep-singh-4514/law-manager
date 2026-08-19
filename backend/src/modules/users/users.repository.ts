@@ -1,5 +1,5 @@
 import { db } from "../../db";
-import { users, type CreateUser, type PublicUser, type updateUser, type User } from "./users.schema";
+import { users, type CreateUser, type PublicUser, type UpdateUser, type User } from "./users.schema";
 import { and, eq, getTableColumns } from "drizzle-orm";
 
 const allColumns = getTableColumns(users);
@@ -64,7 +64,7 @@ export class UsersRepository {
         return (result[0] as PublicUser) ?? null;
     }
 
-    async update(id: number, user: updateUser): Promise<PublicUser | null> {
+    async update(id: number, user: UpdateUser): Promise<PublicUser | null> {
         const result = await db
             .update(users)
             .set(user)

@@ -1,7 +1,7 @@
 import { hashPassword } from "../../utils/bcrypt";
 import { HTTPCodes, MyError } from "../../utils/errorHandling";
 import { UsersRepository } from "./users.repository";
-import type { CreateUser, PublicUser, updatePassword, updateUser } from "./users.schema";
+import type { CreateUser, PublicUser, UpdatePassword, UpdateUser } from "./users.schema";
 import { NotFoundError } from "elysia";
 
 export class UsersService {
@@ -43,7 +43,7 @@ export class UsersService {
         return result;
     }
 
-    async patchUser(id: number, user: updateUser): Promise<PublicUser | null> {
+    async patchUser(id: number, user: UpdateUser): Promise<PublicUser | null> {
         if (Object.keys(user).length === 0) {
             throw new MyError("Nothing to update", HTTPCodes.BAD_REQUEST);
         }
@@ -85,7 +85,7 @@ export class UsersService {
 
         return await this.usersRepository.update(id, updateData);
     }
-    async updatePassword(id: number, data: updatePassword): Promise<PublicUser | null> {
+    async updatePassword(id: number, data: UpdatePassword): Promise<PublicUser | null> {
         const password = await hashPassword(data.password);
         return await this.usersRepository.update(id, { password: password });
     }

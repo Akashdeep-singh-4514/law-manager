@@ -37,7 +37,7 @@ export type CreateUser = {
     mobile:string;
 }
 
-export type updateUser = {
+export type UpdateUser = {
     name?: string;
     email?: string;
     dialCode?: string;
@@ -46,6 +46,6 @@ export type updateUser = {
     password?:string
 }
 
-export type updatePassword={
+export type UpdatePassword={
     password:string
 }

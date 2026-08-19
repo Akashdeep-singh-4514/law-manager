@@ -1,5 +1,5 @@
 import { Elysia, t } from "elysia";
-import { type CreateUser, type updatePassword, type updateUser } from "./users.schema";
+import { type CreateUser, type UpdatePassword, type UpdateUser } from "./users.schema";
 import { UsersService } from "./users.service";
 import { logError } from "../../utils/logger";
 import { usersPostValidator, usersUpdateValidator } from "./user.validate";
@@ -56,7 +56,7 @@ export class UsersController {
                     if (!params.id) {
                         throw new MyError("id is required",HTTPCodes.BAD_REQUEST)
                     }
-                    const res = await this.usersService.patchUser(params.id,body as updateUser);
+                    const res = await this.usersService.patchUser(params.id,body as UpdateUser);
 
                     return res
                 } catch (e) {
@@ -72,7 +72,7 @@ export class UsersController {
                     if (!params.id) {
                         throw new MyError("id is required",HTTPCodes.BAD_REQUEST)
                     }
-                    const res = await this.usersService.updatePassword(Number(params.id),body as updatePassword);
+                    const res = await this.usersService.updatePassword(Number(params.id),body as UpdatePassword);
 
                     return res
                 } catch (e) {
