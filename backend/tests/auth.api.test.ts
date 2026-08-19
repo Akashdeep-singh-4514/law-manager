@@ -31,7 +31,8 @@ interface User {
 
 interface AuthResponse {
     user: User;
-    token: string;
+    accessToken: string;
+    refreshToken: string;
 }
 
 interface SuccessResponse<T> {
@@ -175,8 +176,10 @@ describe("POST /v1/auth/signup", () => {
             expect(body.data.user.password)
                 .toBeUndefined();
 
-            expect(body.data.token)
+            expect(body.data.accessToken)
                 .toBe("");
+
+            expect(body.data.refreshToken).toBe("")
         },
     );
 
@@ -331,9 +334,11 @@ describe("POST /v1/auth/signin/email", () => {
             expect(body.data.user.password)
               .toBeUndefined();
 
-            expect(body.data.token)
+            expect(body.data.accessToken)
                 .toBe("");
-        },
+
+            expect(body.data.refreshToken).toBe("")
+      },
     );
 
     it(
@@ -470,8 +475,10 @@ describe("POST /v1/auth/signin/mobile", () => {
             expect(body.data.user.password)
               .toBeUndefined();
 
-            expect(body.data.token)
+            expect(body.data.accessToken)
                 .toBe("");
+
+            expect(body.data.refreshToken).toBe("")
         },
     );
 

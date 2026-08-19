@@ -1,7 +1,7 @@
 import Elysia from "elysia";
 import { logError } from "../../utils/logger";
 import { userEmailLoginValidator, userMobileLoginValidator, usersPostValidator } from "../users/user.validate";
-import type { EmailLoginUser, MobileLoginUser, NewUser } from "./auth.schema";
+import type { EmailLoginUser, MobileLoginUser, AuthResult } from "./auth.schema";
 import { AuthService } from "./auth.service";
 
 export class AuthController {
@@ -15,7 +15,7 @@ export class AuthController {
         })
             .post(
                 "/signup",
-                async ({ body }): Promise<NewUser> => {
+                async ({ body }): Promise<AuthResult> => {
                     try {
                         const res = this.authService.signup(body);
                         return res;

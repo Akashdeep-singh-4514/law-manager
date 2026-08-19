@@ -1,8 +1,9 @@
 import type { PublicUser } from "../users/users.schema";
 
-export type NewUser = {
+export type AuthResult = {
     user: PublicUser;
-    token: string;
+    accessToken: string;
+    refreshToken: string;
 };
 
 export type EmailLoginUser = {

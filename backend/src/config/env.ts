@@ -3,9 +3,7 @@ import dotenv from "dotenv";
 const result = dotenv.config();
 
 if (result.error) {
-    throw new Error(
-        `Failed to load .env file: ${result.error.message}`
-    );
+    throw new Error(`Failed to load .env file: ${result.error.message}`);
 }
 
 type Environment = "development" | "test" | "production" | "staging";
@@ -19,28 +17,31 @@ type AppEnv = {
 type DbEnv = {
     url: string;
     confirmReset: string;
-    testUrl:string;
+    testUrl: string;
 };
 
 type AdminEnv = {
     email: string;
     password: string;
     name: string;
-}
+};
+type jwtEnv = {
+  secret: string;
+  life: number
+};
 
 type Env = {
     appConf: Readonly<AppEnv>;
     dbConf: Readonly<DbEnv>;
     adminConf: Readonly<AdminEnv>;
+    jwtconf: Readonly<jwtEnv>;
 };
 
 function getRequiredEnv(name: string): string {
     const value = process.env[name]?.trim();
 
     if (!value) {
-        throw new Error(
-            `Missing required environment variable: ${name}`
-        );
+        throw new Error(`Missing required environment variable: ${name}`);
     }
 
     return value;
@@ -52,7 +53,7 @@ function getNumberEnv(
         min?: number;
         max?: number;
         defaultValue?: number;
-    } = {}
+    } = {},
 ): number {
     const rawValue = process.env[name]?.trim();
 
@@ -68,19 +69,19 @@ function getNumberEnv(
 
     if (!Number.isFinite(value)) {
         throw new Error(
-            `Environment variable ${name} must be a valid number. Received: "${rawValue}"`
+            `Environment variable ${name} must be a valid number. Received: "${rawValue}"`,
         );
     }
 
     if (options.min !== undefined && value < options.min) {
         throw new Error(
-            `Environment variable ${name} must be >= ${options.min}. Received: ${value}`
+            `Environment variable ${name} must be >= ${options.min}. Received: ${value}`,
         );
     }
 
     if (options.max !== undefined && value > options.max) {
         throw new Error(
-            `Environment variable ${name} must be <= ${options.max}. Received: ${value}`
+            `Environment variable ${name} must be <= ${options.max}. Received: ${value}`,
         );
     }
 
@@ -90,16 +91,12 @@ function getNumberEnv(
 function getEnvironment(): Environment {
     const value = getRequiredEnv("ENV");
 
-    const allowedEnvironments: Environment[] = [
-        "development",
-        "test",
-        "production",
-    ];
+    const allowedEnvironments: Environment[] = ["development", "test", "production"];
 
     if (!allowedEnvironments.includes(value as Environment)) {
         throw new Error(
             `Invalid ENV value: "${value}". ` +
-            `Expected one of: ${allowedEnvironments.join(", ")}`
+                `Expected one of: ${allowedEnvironments.join(", ")}`,
         );
     }
 
@@ -122,18 +119,23 @@ const appConf: Readonly<AppEnv> = Object.freeze({
 const dbConf: Readonly<DbEnv> = Object.freeze({
     url: getRequiredEnv("DATABASE_URL"),
     testUrl: getRequiredEnv("TEST_DATABASE_URL"),
-    confirmReset: getRequiredEnv("CONFIRM_RESET")
+    confirmReset: getRequiredEnv("CONFIRM_RESET"),
 });
 
 const adminConf: Readonly<AdminEnv> = Object.freeze({
     name: getRequiredEnv("SUPER_ADMIN_NAME"),
     password: getRequiredEnv("SUPER_ADMIN_PASSWORD"),
     email: getRequiredEnv("SUPER_ADMIN_EMAIL"),
+});
 
-})
+const jwtconf: Readonly<jwtEnv> = Object.freeze({
+  secret: getRequiredEnv("JWT_SECRET"),
+  life: getNumberEnv("JWT_LIFE")
+});
 
 export const env: Env = Object.freeze({
     appConf,
     dbConf,
-    adminConf
+    adminConf,
+    jwtconf,
 });

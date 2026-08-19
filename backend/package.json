@@ -19,6 +19,8 @@
     "check": "bun run lint && bun run format:check"
   },
   "dependencies": {
+    "@elysia/cors": "^1.4.2",
+    "@elysia/jwt": "^1.4.2",
     "@rasla/logify": "^5.2.2",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
