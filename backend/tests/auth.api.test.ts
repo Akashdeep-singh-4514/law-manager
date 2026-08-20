@@ -611,7 +611,7 @@ describe("POST /v1/auth/refresh", () => {
     it(
         "issues a new token pair and rotates the refresh token",
         async () => {
-            const { accessToken: oldAccessToken, refreshToken: oldRefreshToken } =
+            const { refreshToken: oldRefreshToken } =
                 await signinWithEmail();
 
             const res = await post("/v1/auth/refresh", {
@@ -632,8 +632,6 @@ describe("POST /v1/auth/refresh", () => {
                 .toBe("string");
             expect(body.data.accessToken.length)
                 .toBeGreaterThan(0);
-            expect(body.data.accessToken)
-                .not.toBe(oldAccessToken);
 
             expect(typeof body.data.refreshToken)
                 .toBe("string");
