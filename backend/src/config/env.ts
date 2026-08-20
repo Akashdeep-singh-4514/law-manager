@@ -27,7 +27,8 @@ type AdminEnv = {
 };
 type jwtEnv = {
   secret: string;
-  life: number
+  expiresIn: number;
+  refreshTokenTTL: number;
 };
 
 type Env = {
@@ -130,7 +131,8 @@ const adminConf: Readonly<AdminEnv> = Object.freeze({
 
 const jwtconf: Readonly<jwtEnv> = Object.freeze({
   secret: getRequiredEnv("JWT_SECRET"),
-  life: getNumberEnv("JWT_LIFE")
+  expiresIn: getNumberEnv("ACCESS_TOKEN_EXPIRES_IN"),
+    refreshTokenTTL:getNumberEnv("REFRESH_TOKEN_TTL_MS")
 });
 
 export const env: Env = Object.freeze({

@@ -15,6 +15,13 @@
       "when": 1786949754223,
       "tag": "0001_plain_ben_parker",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787144474162,
+      "tag": "0002_ordinary_reavers",
+      "breakpoints": true
     }
   ]
 }

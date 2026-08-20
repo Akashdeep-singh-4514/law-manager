@@ -103,6 +103,22 @@ async function createTestUser(): Promise<User> {
     return body.data;
 }
 
+async function signinWithEmail(): Promise<AuthResponse> {
+    await createTestUser();
+
+    const res = await post("/v1/auth/signin/email", {
+        email: testEmail,
+        password: testPassword,
+    });
+
+    expect(res.status).toBe(200);
+
+    const body =
+        (await res.json()) as SuccessResponse<AuthResponse>;
+
+    return body.data;
+}
+
 beforeAll(async () => {
     await connectDatabase();
 });
@@ -176,10 +192,18 @@ describe("POST /v1/auth/signup", () => {
             expect(body.data.user.password)
                 .toBeUndefined();
 
-            expect(body.data.accessToken)
-                .toBe("");
+            expect(typeof body.data.accessToken)
+                .toBe("string");
+            expect(body.data.accessToken.length)
+                .toBeGreaterThan(0);
 
-            expect(body.data.refreshToken).toBe("")
+            expect(typeof body.data.refreshToken)
+                .toBe("string");
+            expect(body.data.refreshToken.length)
+                .toBeGreaterThan(0);
+            // id.secret format
+            expect(body.data.refreshToken)
+                .toContain(".");
         },
     );
 
@@ -334,10 +358,15 @@ describe("POST /v1/auth/signin/email", () => {
             expect(body.data.user.password)
               .toBeUndefined();
 
-            expect(body.data.accessToken)
-                .toBe("");
+            expect(typeof body.data.accessToken)
+                .toBe("string");
+            expect(body.data.accessToken.length)
+                .toBeGreaterThan(0);
 
-            expect(body.data.refreshToken).toBe("")
+            expect(typeof body.data.refreshToken)
+                .toBe("string");
+            expect(body.data.refreshToken.length)
+                .toBeGreaterThan(0);
       },
     );
 
@@ -475,10 +504,15 @@ describe("POST /v1/auth/signin/mobile", () => {
             expect(body.data.user.password)
               .toBeUndefined();
 
-            expect(body.data.accessToken)
-                .toBe("");
+            expect(typeof body.data.accessToken)
+                .toBe("string");
+            expect(body.data.accessToken.length)
+                .toBeGreaterThan(0);
 
-            expect(body.data.refreshToken).toBe("")
+            expect(typeof body.data.refreshToken)
+                .toBe("string");
+            expect(body.data.refreshToken.length)
+                .toBeGreaterThan(0);
         },
     );
 
@@ -565,6 +599,194 @@ describe("POST /v1/auth/signin/mobile", () => {
                     mobile: testMobile,
                 },
             );
+
+            expect(res.status).toBeGreaterThanOrEqual(400);
+            expect(res.status).toBeLessThan(500);
+        },
+    );
+});
+
+
+describe("POST /v1/auth/refresh", () => {
+    it(
+        "issues a new token pair and rotates the refresh token",
+        async () => {
+            const { accessToken: oldAccessToken, refreshToken: oldRefreshToken } =
+                await signinWithEmail();
+
+            const res = await post("/v1/auth/refresh", {
+                refreshToken: oldRefreshToken,
+            });
+
+            expect(res.status).toBe(200);
+
+            const body =
+                (await res.json()) as SuccessResponse<{
+                    accessToken: string;
+                    refreshToken: string;
+                }>;
+
+            expect(body.status).toBe("success");
+
+            expect(typeof body.data.accessToken)
+                .toBe("string");
+            expect(body.data.accessToken.length)
+                .toBeGreaterThan(0);
+            expect(body.data.accessToken)
+                .not.toBe(oldAccessToken);
+
+            expect(typeof body.data.refreshToken)
+                .toBe("string");
+            expect(body.data.refreshToken.length)
+                .toBeGreaterThan(0);
+            expect(body.data.refreshToken)
+                .not.toBe(oldRefreshToken);
+        },
+    );
+
+    it(
+        "rejects reuse of an already-rotated refresh token and revokes the whole session",
+        async () => {
+            const { refreshToken: originalRefreshToken } =
+                await signinWithEmail();
+
+            const first = await post("/v1/auth/refresh", {
+                refreshToken: originalRefreshToken,
+            });
+
+            expect(first.status).toBe(200);
+
+            const firstBody =
+                (await first.json()) as SuccessResponse<{
+                    accessToken: string;
+                    refreshToken: string;
+                }>;
+
+            // Reusing the original (now-revoked) token should be treated
+            // as a compromise signal, not a normal invalid-token error.
+            const reuse = await post("/v1/auth/refresh", {
+                refreshToken: originalRefreshToken,
+            });
+
+            expect(reuse.status).toBe(401);
+
+            const reuseBody =
+                (await reuse.json()) as ErrorResponse;
+
+            expect(reuseBody.message)
+                .toContain("reuse detected");
+
+            // The token issued by the first rotation should also have
+            // been revoked as a consequence of the detected reuse.
+            const afterReuse = await post("/v1/auth/refresh", {
+                refreshToken: firstBody.data.refreshToken,
+            });
+
+            expect(afterReuse.status).toBe(401);
+        },
+    );
+
+    it(
+        "rejects an unknown refresh token",
+        async () => {
+            const res = await post("/v1/auth/refresh", {
+                refreshToken: `${crypto.randomUUID()}.not-a-real-secret`,
+            });
+
+            expect(res.status).toBe(401);
+
+            const body =
+                (await res.json()) as ErrorResponse;
+
+            expect(body.message)
+                .toContain("invalid refresh token");
+        },
+    );
+
+    it(
+        "rejects a malformed refresh token",
+        async () => {
+            const res = await post("/v1/auth/refresh", {
+                refreshToken: "not-a-valid-token-format",
+            });
+
+            expect(res.status).toBe(401);
+        },
+    );
+
+    it(
+        "rejects a missing refreshToken field",
+        async () => {
+            const res = await post("/v1/auth/refresh", {});
+
+            expect(res.status).toBeGreaterThanOrEqual(400);
+            expect(res.status).toBeLessThan(500);
+        },
+    );
+});
+
+
+describe("POST /v1/auth/logout", () => {
+    it(
+        "revokes the refresh token so it can no longer be used",
+        async () => {
+            const { refreshToken } = await signinWithEmail();
+
+            const res = await post("/v1/auth/logout", {
+                refreshToken,
+            });
+
+            expect(res.status).toBe(200);
+
+            const body =
+                (await res.json()) as SuccessResponse<{
+                    success: boolean;
+                }>;
+
+            expect(body.status).toBe("success");
+            expect(body.data.success).toBe(true);
+
+            const refreshAfterLogout = await post(
+                "/v1/auth/refresh",
+                { refreshToken },
+            );
+
+            expect(refreshAfterLogout.status).toBe(401);
+        },
+    );
+
+    it(
+        "is safe to call twice with the same token",
+        async () => {
+            const { refreshToken } = await signinWithEmail();
+
+            const first = await post("/v1/auth/logout", {
+                refreshToken,
+            });
+            expect(first.status).toBe(200);
+
+            const second = await post("/v1/auth/logout", {
+                refreshToken,
+            });
+            expect(second.status).toBe(200);
+        },
+    );
+
+    it(
+        "rejects a malformed refresh token",
+        async () => {
+            const res = await post("/v1/auth/logout", {
+                refreshToken: "not-a-valid-token-format",
+            });
+
+            expect(res.status).toBe(401);
+        },
+    );
+
+    it(
+        "rejects a missing refreshToken field",
+        async () => {
+            const res = await post("/v1/auth/logout", {});
 
             expect(res.status).toBeGreaterThanOrEqual(400);
             expect(res.status).toBeLessThan(500);

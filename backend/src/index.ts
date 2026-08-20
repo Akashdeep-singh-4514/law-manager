@@ -7,6 +7,7 @@ import { runMigrations } from "./db/migrate";
 import { runSeeders } from "./db/seed";
 import { logError } from "./utils/logger";
 import { responseMiddleware } from "./utils/middleware";
+import { cors } from '@elysia/cors'
 
 async function bootstrap() {
     try {
@@ -22,6 +23,13 @@ async function bootstrap() {
             .onRequest(({ request }) => {
                 info(`REQUEST URL: ${JSON.stringify(request.url)}`);
             })
+            .use(
+                cors({
+                    origin: "http://localhost:3000",
+                    credentials: true,
+                    methods: ["GET", "POST"],
+                }),
+            )
             .use(responseMiddleware)
             .use(mainRouter)
             .get("/", () => "ok")

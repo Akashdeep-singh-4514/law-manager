@@ -65,3 +65,7 @@ export function booleanValidator() {
 export function stringArrayValidator() {
     return t.Array(t.String());
 }
+
+export const refreshTokenValidator = t.Object({
+    refreshToken: t.String(),
+});
