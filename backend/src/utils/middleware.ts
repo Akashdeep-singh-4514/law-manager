@@ -1,4 +1,6 @@
 import { Elysia } from "elysia";
+import { HTTPCodes, MyError } from "../utils/errorHandling";
+import { verifyAccessToken, type AccessTokenPayload } from "../utils/jwt";
 
 export const responseMiddleware = new Elysia()
     .onAfterHandle({ as: "global" }, ({ response }) => {
@@ -59,7 +61,6 @@ function humanizeValidationMessage(
 ): string {
     const schema = err.schema ?? {};
 
-    // Missing field entirely (TypeBox reports this as "found: undefined")
     if (err.summary?.includes("found: undefined")) {
         return `${field} is required`;
     }
@@ -87,3 +88,54 @@ function humanizeValidationMessage(
 
     return err.message || `${field} is invalid`;
 }
+
+
+function extractBearerToken(authHeader: string | undefined): string {
+    if (!authHeader) {
+        throw new MyError("missing authorization header", HTTPCodes.UNAUTHORIZED);
+    }
+
+    const [scheme, token] = authHeader.split(" ");
+    if (scheme !== "Bearer" || !token) {
+        throw new MyError(
+            "authorization header must be in the form 'Bearer <token>'",
+            HTTPCodes.UNAUTHORIZED,
+        );
+    }
+
+    return token;
+}
+
+export const authMiddleware = new Elysia({ name: "auth-middleware" }).derive(
+    { as: "scoped" },
+    ({ headers }): { user: AccessTokenPayload } => {
+        const token = extractBearerToken(headers.authorization);
+
+        try {
+          const user = verifyAccessToken(token);
+
+            return { user };
+        } catch {
+            throw new MyError("invalid or expired access token", HTTPCodes.UNAUTHORIZED);
+        }
+    },
+);
+
+
+export const requireSelfMiddleware = new Elysia({ name: "require-self-middleware" })
+    .use(authMiddleware)
+    .onBeforeHandle({ as: "scoped" }, ({ params, user }) => {
+        const rawId = (params as Record<string, string | undefined>).id;
+        const paramId = Number(rawId);
+
+        if (rawId === undefined || Number.isNaN(paramId)) {
+            throw new Error("requireSelfMiddleware used on a route with no numeric :id param");
+        }
+
+        if (paramId !== user?.userId) {
+            throw new MyError(
+                "you are not allowed to access this resource",
+                HTTPCodes.FORBIDDEN,
+            );
+        }
+    });

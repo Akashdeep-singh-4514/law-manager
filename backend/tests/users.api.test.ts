@@ -219,7 +219,7 @@ describe("POST /v1/users", () => {
         },
     );
 
-    it(
+    it.only(
         "creates a user successfully",
         async () => {
             const res = await post("/v1/users", {

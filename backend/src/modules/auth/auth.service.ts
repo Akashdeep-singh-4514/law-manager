@@ -161,4 +161,12 @@ export class AuthService {
         await this.refreshTokenRepository.revokeAllForUser(userId);
         return { success: true };
     };
+    me = async (userId: number): Promise<PublicUser> => {
+        const user = await this.userService.getUserById(userId);
+        if (!user) throw new MyError("user not found", HTTPCodes.NOT_FOUND);
+        if (!user.isActive) {
+            throw new MyError("user account is inactive", HTTPCodes.UNAUTHORIZED);
+        }
+        return user;
+    };
 }

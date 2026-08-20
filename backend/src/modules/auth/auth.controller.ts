@@ -3,10 +3,11 @@ import { logError } from "../../utils/logger";
 import { userEmailLoginValidator, userMobileLoginValidator, usersPostValidator } from "../users/user.validate";
 import type { AuthResult, EmailLoginUser, LogoutInput, MobileLoginUser, RefreshTokenInput, TokenPair } from "./auth.schema";
 import { AuthService } from "./auth.service";
-import { idValidator, refreshTokenValidator } from "../../utils/validator";
-import { HTTPCodes, MyError } from "../../utils/errorHandling";
+import { authMiddleware } from "../../utils/middleware";
 
-
+const refreshTokenValidator = t.Object({
+    refreshToken: t.String(),
+});
 
 export class AuthController {
     private readonly authService: AuthService;
@@ -89,24 +90,22 @@ export class AuthController {
                     body: refreshTokenValidator,
                 },
             )
-        .post(
-            "/logoutall/:id",
-            async ({ params }) => {
-              try {
-                if (!params.id) {
-                    throw new MyError("id is required",HTTPCodes.BAD_REQUEST)
-                }
-                    return await this.authService.logoutAll(Number(params.id));
+            .use(authMiddleware)
+            .get("/me", async ({ user }) => {
+                try {
+                    return await this.authService.me(user.userId);
                 } catch (e) {
-                    logError(e, "logout user");
+                    logError(e, "get current user");
                     throw e;
                 }
-            },
-            {
-              params: t.Object({
-                  id:idValidator
-                }),
-            },
-        );
+            })
+            .post("/logout-all", async ({ user }) => {
+                try {
+                    return await this.authService.logoutAll(user.userId);
+                } catch (e) {
+                    logError(e, "logout all sessions");
+                    throw e;
+                }
+            });
     }
 }
