@@ -58,24 +58,41 @@ export class AuthService {
     emailSignin = async (user: EmailLoginUser): Promise<AuthResult> => {
         const res = await this.userService.getUserByEmailUnsafe(user.email);
         if (!res) throw new MyError("user not found", HTTPCodes.NOT_FOUND);
+
+        if (!res.isActive) {
+            throw new MyError("user account is inactive", HTTPCodes.UNAUTHORIZED);
+        }
+
         const matched = await comparePassword(user.password, res.password);
+
         if (!matched) {
             throw new MyError("invalid credential", HTTPCodes.UNAUTHORIZED);
         }
+
         const { password: _, ...safeUser } = res;
         const { accessToken, refreshToken } = await this.issueTokenPair(safeUser);
+
         return { user: safeUser, accessToken, refreshToken };
     };
 
     mobileSignin = async (user: MobileLoginUser): Promise<AuthResult> => {
         const res = await this.userService.getUserByPhoneUnsafe(user.dialCode, user.mobile);
+
         if (!res) throw new MyError("user not found", HTTPCodes.NOT_FOUND);
+
+        if (!res.isActive) {
+            throw new MyError("user account is inactive", HTTPCodes.UNAUTHORIZED);
+        }
+
         const matched = await comparePassword(user.password, res.password);
+
         if (!matched) {
             throw new MyError("invalid credential", HTTPCodes.UNAUTHORIZED);
         }
+
         const { password: _, ...safeUser } = res;
         const { accessToken, refreshToken } = await this.issueTokenPair(safeUser);
+
         return { user: safeUser, accessToken, refreshToken };
     };
 
@@ -102,6 +119,10 @@ export class AuthService {
 
         const user = await this.userService.getUserById(existing.userId);
         if (!user) throw new MyError("user not found", HTTPCodes.NOT_FOUND);
+
+        if (!user.isActive) {
+            throw new MyError("user account is inactive", HTTPCodes.UNAUTHORIZED);
+        }
 
         const newId = newRefreshTokenId();
         const newSecret = generateRefreshTokenSecret();
