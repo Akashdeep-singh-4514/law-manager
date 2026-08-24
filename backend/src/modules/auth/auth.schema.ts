@@ -1,4 +1,4 @@
-import type { PublicUser } from "../users/users.schema";
+import type { PublicUser, UserRoles } from "../users/users.schema";
 
 export type AuthResult = {
     user: PublicUser;
@@ -9,12 +9,14 @@ export type AuthResult = {
 export type EmailLoginUser = {
     email: string;
     password: string;
+    role?:UserRoles
 };
 
 export type MobileLoginUser = {
     dialCode: string;
     mobile: string;
     password: string;
+    role?:UserRoles
 };
 
 

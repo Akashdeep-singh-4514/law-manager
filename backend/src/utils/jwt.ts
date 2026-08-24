@@ -1,5 +1,6 @@
 import { env } from "../config/env";
 import jwt from "jsonwebtoken";
+import type { UserRoles } from "../modules/users/users.schema";
 
 const ACCESS_TOKEN_SECRET = env.jwtconf.secret;
 const ACCESS_TOKEN_EXPIRES_IN = env.jwtconf.expiresIn;
@@ -7,6 +8,7 @@ const ACCESS_TOKEN_EXPIRES_IN = env.jwtconf.expiresIn;
 export type AccessTokenPayload = {
     userId: number;
     email: string;
+    role: UserRoles
 };
 
 export function signAccessToken(payload: AccessTokenPayload): string {

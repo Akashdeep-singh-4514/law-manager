@@ -1,11 +1,20 @@
 import {
     boolean,
+    pgEnum,
     pgTable,
     serial,
     text,
     timestamp,
     unique,
 } from "drizzle-orm/pg-core";
+
+export enum UserRoles {
+    SUPERADMIN = "super_admin",
+    ADMIN = "admin",
+    USER = "user"
+}
+
+export const UserRoleEnum = pgEnum("user_roles", UserRoles);
 
 export const users = pgTable("users", {
     id: serial("id").primaryKey(),
@@ -14,6 +23,7 @@ export const users = pgTable("users", {
     password: text("password").notNull(),
     isActive: boolean().notNull().default(true),
     dialCode: text("dialCode").notNull(),
+    role: UserRoleEnum("role").notNull().default(UserRoles.USER),
     mobile: text("mobile").notNull(),
     devices: text("devices").array().default([]).notNull(),
     createdAt: timestamp("created_at")
@@ -34,18 +44,19 @@ export type CreateUser = {
     email: string;
     password: string;
     dialCode: string;
-    mobile:string;
+    mobile: string;
 }
 
 export type UpdateUser = {
     name?: string;
     email?: string;
     dialCode?: string;
-    mobile?:string;
-    isActive?:boolean
-    password?:string
+    mobile?: string;
+    isActive?: boolean
+    role?:UserRoles,
+    password?: string
 }
 
-export type UpdatePassword={
-    password:string
+export type UpdatePassword = {
+    password: string
 }

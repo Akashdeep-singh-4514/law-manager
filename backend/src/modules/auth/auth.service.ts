@@ -10,7 +10,7 @@ import {
     refreshTokenExpiry,
 } from "../../utils/bcrypt";
 import { signAccessToken } from "../../utils/jwt";
-import type { CreateUser, PublicUser } from "../users/users.schema";
+import { UserRoles, type CreateUser, type PublicUser } from "../users/users.schema";
 import { UsersService } from "../users/users.service";
 import { RefreshTokenRepository } from "../refresh/refresh.repository";
 import type {
@@ -31,8 +31,8 @@ export class AuthService {
         this.refreshTokenRepository = new RefreshTokenRepository();
     }
 
-    private issueTokenPair = async (user: PublicUser): Promise<TokenPair> => {
-        const accessToken = signAccessToken({ userId: user.id, email: user.email });
+    private issueTokenPair = async (user: PublicUser, role: UserRoles): Promise<TokenPair> => {
+        const accessToken = signAccessToken({ userId: user.id, email: user.email, role });
 
         const id = newRefreshTokenId();
         const secret = generateRefreshTokenSecret();
@@ -51,7 +51,7 @@ export class AuthService {
     signup = async (user: CreateUser): Promise<AuthResult> => {
         const res = await this.userService.postUser(user);
         if (!res) throw new MyError("cannot signup", HTTPCodes.NOT_MODIFIED);
-        const { accessToken, refreshToken } = await this.issueTokenPair(res);
+        const { accessToken, refreshToken } = await this.issueTokenPair(res,UserRoles.USER);
         return { user: res, accessToken, refreshToken };
     };
 
@@ -70,7 +70,7 @@ export class AuthService {
         }
 
         const { password: _, ...safeUser } = res;
-        const { accessToken, refreshToken } = await this.issueTokenPair(safeUser);
+        const { accessToken, refreshToken } = await this.issueTokenPair(safeUser,res.role??UserRoles.USER);
 
         return { user: safeUser, accessToken, refreshToken };
     };
@@ -90,8 +90,12 @@ export class AuthService {
             throw new MyError("invalid credential", HTTPCodes.UNAUTHORIZED);
         }
 
+        if (user.role && user.role!=res.role) {
+            throw new MyError("invalid credential",HTTPCodes.BAD_REQUEST)
+        }
+
         const { password: _, ...safeUser } = res;
-        const { accessToken, refreshToken } = await this.issueTokenPair(safeUser);
+        const { accessToken, refreshToken } = await this.issueTokenPair(safeUser,user.role??UserRoles.USER);
 
         return { user: safeUser, accessToken, refreshToken };
     };
@@ -135,7 +139,8 @@ export class AuthService {
         });
         await this.refreshTokenRepository.revoke(existing.id, newId);
 
-        const accessToken = signAccessToken({ userId: user.id, email: user.email });
+                
+        const accessToken = signAccessToken({ userId: user.id, email: user.email ,role:user.role??UserRoles.USER});
         return { accessToken, refreshToken: encodeRefreshToken(newId, newSecret) };
     };
 

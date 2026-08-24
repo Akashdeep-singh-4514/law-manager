@@ -24,6 +24,8 @@ type AdminEnv = {
     email: string;
     password: string;
     name: string;
+    dialCode:string;
+    mobile:string;
 };
 type jwtEnv = {
   secret: string;
@@ -40,7 +42,7 @@ type Env = {
 
 function getRequiredEnv(name: string): string {
     const value = process.env[name]?.trim();
-
+    console.log("password",value)
     if (!value) {
         throw new Error(`Missing required environment variable: ${name}`);
     }
@@ -127,6 +129,9 @@ const adminConf: Readonly<AdminEnv> = Object.freeze({
     name: getRequiredEnv("SUPER_ADMIN_NAME"),
     password: getRequiredEnv("SUPER_ADMIN_PASSWORD"),
     email: getRequiredEnv("SUPER_ADMIN_EMAIL"),
+    dialCode:getRequiredEnv("SUPER_ADMIN_DIALCODE"),
+    mobile:getRequiredEnv("SUPER_ADMIN_MOBILE")
+
 });
 
 const jwtconf: Readonly<jwtEnv> = Object.freeze({

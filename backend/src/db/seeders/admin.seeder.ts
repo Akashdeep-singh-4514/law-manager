@@ -1,17 +1,21 @@
 import { db } from "../index";
 import { env } from "../../config/env";
-import { adminRoles, admins } from "../../modules/admin/admin.schema";
+import { users } from "../schema";
+import { UserRoles } from "../../modules/users/users.schema";
+
 
 export async function adminSeeder() {
     await db
-        .insert(admins)
+        .insert(users)
         .values({
-            role: adminRoles.SUPERADMIN,
+            role: UserRoles.SUPERADMIN,
             name: env.adminConf.name,
             email: env.adminConf.email,
             password: env.adminConf.password,
+            dialCode:env.adminConf.dialCode,
+            mobile:env.adminConf.mobile,
         })
         .onConflictDoNothing({
-            target: admins.email,
+            target: users.email,
         });
 }

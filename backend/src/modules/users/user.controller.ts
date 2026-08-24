@@ -1,5 +1,5 @@
 import { Elysia, t } from "elysia";
-import { type CreateUser, type UpdatePassword, type UpdateUser } from "./users.schema";
+import { UserRoles, type CreateUser, type UpdatePassword, type UpdateUser } from "./users.schema";
 import { UsersService } from "./users.service";
 import { logError } from "../../utils/logger";
 import { usersPostValidator, usersUpdateValidator } from "./user.validate";
@@ -26,22 +26,22 @@ export class UsersController {
                     throw e;
                 }
             })
-            .post(
-                "/",
-                async ({ body }) => {
-                    try {
-                        const res = await this.usersService.postUser(body as CreateUser);
+            // .post(
+            //     "/",
+            //     async ({ body }) => {
+            //         try {
+            //             const res = await this.usersService.postUser(body as CreateUser);
 
-                        return res;
-                    } catch (e) {
-                        logError(e, "creating user");
-                        throw e;
-                    }
-                },
-                {
-                    body: usersPostValidator,
-                },
-            )
+            //             return res;
+            //         } catch (e) {
+            //             logError(e, "creating user");
+            //             throw e;
+            //         }
+            //     },
+            //     {
+            //         body: usersPostValidator,
+            //     },
+            // )
             .use(requireSelfMiddleware)
             .get(
                 "/:id",
@@ -127,5 +127,47 @@ export class UsersController {
                     params: idValidator,
                 },
             );
+    }
+}
+export class AdminController {
+    private readonly usersService: UsersService;
+
+    constructor() {
+        this.usersService = new UsersService();
+    }
+    getRoutes() {
+        return new Elysia({
+            prefix: "/users",
+        }).post("/create-admin", async ({ body }) => {
+            try {
+                const res = await this.usersService.postUser(body as CreateUser, UserRoles.ADMIN);
+
+                return res;
+            } catch (e) {
+                logError(e, "creating admin");
+                throw e;
+            }
+        },
+            {
+                body: usersPostValidator,
+            },)
+            .patch("/:id", async ({ params, body }) => {
+                try {
+                    if (!params.id) {
+                        throw new MyError("id is required", HTTPCodes.BAD_REQUEST);
+                    }
+                    const res = await this.usersService.changeRole(params.id,body );
+
+                    return res;
+                } catch (e) {
+                    logError(e, "updating role");
+                    throw e;
+                }
+            }, {
+                body: t.Object({
+                    role: t.Enum(UserRoles)
+                }),
+                params: idValidator,
+            },)
     }
 }

@@ -1,7 +1,7 @@
 import { hashPassword } from "../../utils/bcrypt";
 import { HTTPCodes, MyError } from "../../utils/errorHandling";
 import { UsersRepository } from "./users.repository";
-import type { CreateUser, PublicUser, UpdatePassword, UpdateUser } from "./users.schema";
+import { UserRoles, type CreateUser, type PublicUser, type UpdatePassword, type UpdateUser } from "./users.schema";
 import { NotFoundError } from "elysia";
 
 export class UsersService {
@@ -24,7 +24,7 @@ export class UsersService {
         return result;
     }
 
-    async postUser(user: CreateUser): Promise<PublicUser | null> {
+    async postUser(user: CreateUser, role?: UserRoles): Promise<PublicUser | null> {
         const password = await hashPassword(user.password);
         const newUser = {
             name: user.name,
@@ -32,6 +32,7 @@ export class UsersService {
             dialCode: user.dialCode,
             mobile: user.mobile,
             password: password,
+            role: role ?? UserRoles.USER
         };
         if (await this.usersRepository.findByEmail(user.email)) {
             throw new MyError("email already exists", HTTPCodes.CONFLICT);
@@ -108,10 +109,14 @@ export class UsersService {
     }
 
     async getUserByPhoneUnsafe(dialcode: string, mobile: string) {
-        const user = await this.usersRepository.findByPhoneUnsafe(dialcode,mobile);
+        const user = await this.usersRepository.findByPhoneUnsafe(dialcode, mobile);
         if (!user) {
             throw new MyError(`user  not found`, HTTPCodes.NOT_FOUND);
         }
         return user;
+    }
+
+    async changeRole(id: number, body: { role: UserRoles }) {
+        return await this.usersRepository.update(id, { role:body.role });
     }
 }
