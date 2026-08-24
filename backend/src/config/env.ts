@@ -42,7 +42,6 @@ type Env = {
 
 function getRequiredEnv(name: string): string {
     const value = process.env[name]?.trim();
-    console.log("password",value)
     if (!value) {
         throw new Error(`Missing required environment variable: ${name}`);
     }

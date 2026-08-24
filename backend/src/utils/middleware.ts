@@ -1,11 +1,11 @@
 import { Elysia } from "elysia";
 import { HTTPCodes, MyError } from "../utils/errorHandling";
-import { verifyAccessToken, type AccessTokenPayload } from "../utils/jwt";
+import { verifyAccessToken } from "../utils/jwt";
 
 export const responseMiddleware = new Elysia()
     .onAfterHandle({ as: "global" }, ({ response }) => {
         return {
-            statusCode:200,
+            statusCode: 200,
             status: "success",
             data: response,
             message: "Request successful",
@@ -106,36 +106,59 @@ function extractBearerToken(authHeader: string | undefined): string {
     return token;
 }
 
-export const authMiddleware = new Elysia({ name: "auth-middleware" }).derive(
-    { as: "scoped" },
-    ({ headers }): { user: AccessTokenPayload } => {
-        const token = extractBearerToken(headers.authorization);
-
-        try {
-          const user = verifyAccessToken(token);
-
-            return { user };
-        } catch {
-            throw new MyError("invalid or expired access token", HTTPCodes.UNAUTHORIZED);
-        }
-    },
-);
-
-
-export const requireSelfMiddleware = new Elysia({ name: "require-self-middleware" })
-    .use(authMiddleware)
-    .onBeforeHandle({ as: "scoped" }, ({ params, user }) => {
-        const rawId = (params as Record<string, string | undefined>).id;
-        const paramId = Number(rawId);
-
-        if (rawId === undefined || Number.isNaN(paramId)) {
-            throw new Error("requireSelfMiddleware used on a route with no numeric :id param");
-        }
-
-        if (paramId !== user?.userId) {
-            throw new MyError(
-                "you are not allowed to access this resource",
-                HTTPCodes.FORBIDDEN,
+export const authMiddleware = new Elysia({
+    name: "auth-middleware",
+})
+    .derive(
+        ({ headers }) => {
+            const token = extractBearerToken(
+                headers.authorization,
             );
-        }
-    });
+
+            try {
+                const user = verifyAccessToken(token);
+
+                return {
+                    user,
+                };
+            } catch {
+                throw new MyError(
+                    "invalid or expired access token",
+                    HTTPCodes.UNAUTHORIZED,
+                );
+            }
+        },
+    );
+
+export const requireSelfMiddleware = new Elysia({
+    name: "require-self-middleware",
+})
+    .use(authMiddleware)
+    .onBeforeHandle(
+        ({ params, user }) => {
+            const rawId = params.id;
+
+            if (rawId === undefined) {
+                throw new MyError(
+                    "user id is required",
+                    HTTPCodes.BAD_REQUEST,
+                );
+            }
+
+            const paramId = Number(rawId);
+
+            if (!Number.isInteger(paramId)) {
+                throw new MyError(
+                    "user id must be a valid number",
+                    HTTPCodes.BAD_REQUEST,
+                );
+            }
+
+            if (paramId !== user?.userId) {
+                throw new MyError(
+                    "you are not allowed to access this resource",
+                    HTTPCodes.FORBIDDEN,
+                );
+            }
+        },
+    );
