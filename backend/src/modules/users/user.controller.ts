@@ -151,7 +151,7 @@ export class AdminController {
             {
                 body: usersPostValidator,
             },)
-            .patch("/:id", async ({ params, body }) => {
+            .patch("/:id/role", async ({ params, body }) => {
                 try {
                     if (!params.id) {
                         throw new MyError("id is required", HTTPCodes.BAD_REQUEST);
