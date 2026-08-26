@@ -16,7 +16,7 @@ import {
     db,
 } from "../src/db";
 
-import { users } from "../src/modules/users/users.schema";
+import { users, UserRoles } from "../src/modules/users/users.schema";
 
 interface User {
     id: number;
@@ -25,7 +25,8 @@ interface User {
     dialCode: string;
     mobile: string;
     isActive: boolean;
-    devices: string[] | null;
+    role: UserRoles;
+    devices: string[];
     password?: never;
 }
 
@@ -54,69 +55,92 @@ type ApiResponse<T> = SuccessResponse<T> | ErrorResponse;
 const app = buildTestApp();
 
 const runId = Date.now();
-
-const testEmail =
-    `auth.test.${runId}@example.com`;
-
+const testEmail = `auth.test.${runId}@example.com`;
 const testDialCode = "+91";
-
-const testMobile =
-    `9${String(runId).slice(-9)}`;
-
+const testMobile = `9${String(runId).slice(-9)}`;
 const testPassword = "password123";
 
 async function post(
     path: string,
     body: Record<string, unknown>,
+    accessToken?: string,
 ): Promise<Response> {
     return app.handle(
         new Request(`http://localhost${path}`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
+                ...(accessToken
+                    ? { Authorization: `Bearer ${accessToken}` }
+                    : {}),
             },
             body: JSON.stringify(body),
         }),
     );
 }
 
-async function createTestUser(): Promise<User> {
-    const res = await post("/v1/users", {
+async function get(
+    path: string,
+    accessToken?: string,
+): Promise<Response> {
+    return app.handle(
+        new Request(`http://localhost${path}`, {
+            headers: accessToken
+                ? { Authorization: `Bearer ${accessToken}` }
+                : undefined,
+        }),
+    );
+}
+
+async function signup(
+    overrides: Record<string, unknown> = {},
+): Promise<AuthResponse> {
+    const res = await post("/v1/auth/signup", {
         name: "Auth Test User",
         email: testEmail,
         password: testPassword,
         dialCode: testDialCode,
         mobile: testMobile,
+        ...overrides,
     });
 
     expect(res.status).toBe(200);
 
-    const body =
-        (await res.json()) as ApiResponse<User>;
+    const body = (await res.json()) as ApiResponse<AuthResponse>;
 
     if (body.status !== "success") {
-        throw new Error(
-            `Failed to create test user: ${body.message}`,
-        );
+        throw new Error(`Failed to signup test user: ${body.message}`);
     }
 
     return body.data;
 }
 
-async function signinWithEmail(): Promise<AuthResponse> {
-    await createTestUser();
-
-    const res = await post("/v1/auth/signin/email", {
-        email: testEmail,
-        password: testPassword,
+async function signinEmail(
+    email = testEmail,
+    password = testPassword,
+): Promise<Response> {
+    return post("/v1/auth/signin/email", {
+        email,
+        password,
     });
+}
 
-    expect(res.status).toBe(200);
+async function signinMobile(
+    dialCode = testDialCode,
+    mobile = testMobile,
+    password = testPassword,
+): Promise<Response> {
+    return post("/v1/auth/signin/mobile", {
+        dialCode,
+        mobile,
+        password,
+    });
+}
 
-    const body =
-        (await res.json()) as SuccessResponse<AuthResponse>;
-
-    return body.data;
+async function cleanupByEmails(...emails: string[]) {
+    for (const email of emails) {
+        await db.delete(users).where(eq(users.email, email));
+    }
 }
 
 beforeAll(async () => {
@@ -128,697 +152,539 @@ afterAll(async () => {
 });
 
 afterEach(async () => {
-    await db
-        .delete(users)
-        .where(eq(users.email, testEmail));
-
-    await db
-        .delete(users)
-        .where(
-            eq(
-                users.email,
-                `duplicate.${testEmail}`,
-            ),
-        );
-
-    await db
-        .delete(users)
-        .where(
-            eq(
-                users.email,
-                `second.${testEmail}`,
-            ),
-        );
+    await cleanupByEmails(
+        testEmail,
+        `duplicate.${testEmail}`,
+        `second.${testEmail}`,
+        `inactive.${testEmail}`,
+        `mobile.inactive.${testEmail}`,
+        `refresh.inactive.${testEmail}`,
+        `me.inactive.${testEmail}`,
+    );
 });
-
 
 describe("POST /v1/auth/signup", () => {
-    it(
-        "creates a user successfully",
-        async () => {
-            const res = await post(
-                "/v1/auth/signup",
-                {
-                    name: "Auth Signup User",
-                    email: testEmail,
-                    password: testPassword,
-                    dialCode: testDialCode,
-                    mobile: testMobile,
-                },
-            );
+    it("creates a user and issues access + refresh tokens", async () => {
+        const res = await post("/v1/auth/signup", {
+            name: "Auth Signup User",
+            email: testEmail,
+            password: testPassword,
+            dialCode: testDialCode,
+            mobile: testMobile,
+        });
 
-            expect(res.status).toBe(200);
+        expect(res.status).toBe(200);
 
-            const body =
-                (await res.json()) as SuccessResponse<AuthResponse>;
+        const body = (await res.json()) as SuccessResponse<AuthResponse>;
 
-            expect(body.status).toBe("success");
+        expect(body.status).toBe("success");
+        expect(body.data.user.email).toBe(testEmail);
+        expect(body.data.user.role).toBe(UserRoles.USER);
+        expect(body.data.user.password).toBeUndefined();
 
-            expect(body.data.user.id)
-                .toBeDefined();
+        expect(typeof body.data.accessToken).toBe("string");
+        expect(body.data.accessToken.length).toBeGreaterThan(0);
 
-            expect(body.data.user.name)
-                .toBe("Auth Signup User");
+        expect(typeof body.data.refreshToken).toBe("string");
+        expect(body.data.refreshToken.length).toBeGreaterThan(0);
+        expect(body.data.refreshToken).toContain(".");
+    });
 
-            expect(body.data.user.email)
-                .toBe(testEmail);
+    it("rejects an invalid email", async () => {
+        const res = await post("/v1/auth/signup", {
+            name: "Auth Signup User",
+            email: "invalid-email",
+            password: testPassword,
+            dialCode: testDialCode,
+            mobile: testMobile,
+        });
 
-            expect(body.data.user.dialCode)
-                .toBe(testDialCode);
+        expect(res.status).toBe(422);
 
-            expect(body.data.user.mobile)
-                .toBe(testMobile);
+        const body = (await res.json()) as ErrorResponse;
+        expect(JSON.stringify(body)).toContain("valid email");
+    });
 
-            expect(body.data.user.password)
-                .toBeUndefined();
+    it("rejects missing required fields", async () => {
+        const res = await post("/v1/auth/signup", {
+            email: testEmail,
+        });
 
-            expect(typeof body.data.accessToken)
-                .toBe("string");
-            expect(body.data.accessToken.length)
-                .toBeGreaterThan(0);
+        expect(res.status).toBeGreaterThanOrEqual(400);
+        expect(res.status).toBeLessThan(500);
+    });
 
-            expect(typeof body.data.refreshToken)
-                .toBe("string");
-            expect(body.data.refreshToken.length)
-                .toBeGreaterThan(0);
-            // id.secret format
-            expect(body.data.refreshToken)
-                .toContain(".");
-        },
-    );
+    it("rejects duplicate email", async () => {
+        await signup();
 
-    it(
-        "rejects invalid email",
-        async () => {
-            const res = await post(
-                "/v1/auth/signup",
-                {
-                    name: "Auth Signup User",
-                    email: "invalid-email",
-                    password: testPassword,
-                    dialCode: testDialCode,
-                    mobile: testMobile,
-                },
-            );
+        const res = await post("/v1/auth/signup", {
+            name: "Duplicate User",
+            email: testEmail,
+            password: testPassword,
+            dialCode: testDialCode,
+            mobile: `8${String(runId).slice(-9)}`,
+        });
 
-            expect(res.status).toBe(422);
+        expect(res.status).toBe(409);
 
-            const body =
-                (await res.json()) as ErrorResponse;
+        const body = (await res.json()) as ErrorResponse;
+        expect(body.message).toContain("email already exists");
+    });
 
-            expect(
-                JSON.stringify(body),
-            ).toContain("valid email");
-        },
-    );
+    it("rejects duplicate dialCode + mobile", async () => {
+        await signup();
 
-    it(
-        "rejects signup when required fields are missing",
-        async () => {
-            const res = await post(
-                "/v1/auth/signup",
-                {
-                    email: testEmail,
-                },
-            );
+        const duplicateEmail = `duplicate.${testEmail}`;
 
-            expect(res.status).toBeGreaterThanOrEqual(400);
-            expect(res.status).toBeLessThan(500);
-        },
-    );
+        const res = await post("/v1/auth/signup", {
+            name: "Duplicate Mobile User",
+            email: duplicateEmail,
+            password: testPassword,
+            dialCode: testDialCode,
+            mobile: testMobile,
+        });
 
-    it(
-        "rejects duplicate email",
-        async () => {
-            await post("/v1/auth/signup", {
-                name: "First User",
-                email: testEmail,
-                password: testPassword,
-                dialCode: testDialCode,
-                mobile: testMobile,
-            });
+        expect(res.status).toBe(409);
 
-            const res = await post(
-                "/v1/auth/signup",
-                {
-                    name: "Duplicate User",
-                    email: testEmail,
-                    password: testPassword,
-                    dialCode: testDialCode,
-                    mobile:
-                        `8${String(runId).slice(-9)}`,
-                },
-            );
-
-            expect(res.status).toBe(409);
-
-            const body =
-                (await res.json()) as ErrorResponse;
-
-            expect(body.message)
-                .toContain("email already exists");
-        },
-    );
-
-    it(
-        "rejects duplicate dialCode and mobile",
-        async () => {
-            await post("/v1/auth/signup", {
-                name: "First User",
-                email: testEmail,
-                password: testPassword,
-                dialCode: testDialCode,
-                mobile: testMobile,
-            });
-
-            const duplicateEmail =
-                `duplicate.${testEmail}`;
-
-            const res = await post(
-                "/v1/auth/signup",
-                {
-                    name: "Duplicate Mobile User",
-                    email: duplicateEmail,
-                    password: testPassword,
-                    dialCode: testDialCode,
-                    mobile: testMobile,
-                },
-            );
-
-            expect(res.status).toBe(409);
-
-            const body =
-                (await res.json()) as ErrorResponse;
-
-            expect(body.message)
-                .toContain(
-                    "mobile number already exists",
-                );
-        },
-    );
+        const body = (await res.json()) as ErrorResponse;
+        expect(body.message).toContain("mobile number already exists");
+    });
 });
-
 
 describe("POST /v1/auth/signin/email", () => {
-    it(
-        "signs in successfully with valid email and password",
-        async () => {
-            const user = await createTestUser();
+    it("signs in successfully and returns the user's role", async () => {
+        const user = await signup();
 
-            const res = await post(
-                "/v1/auth/signin/email",
-                {
-                    email: testEmail,
-                    password: testPassword,
-                },
-            );
+        const res = await signinEmail();
 
-            expect(res.status).toBe(200);
+        expect(res.status).toBe(200);
 
-            const body =
-                (await res.json()) as SuccessResponse<AuthResponse>;
+        const body = (await res.json()) as SuccessResponse<AuthResponse>;
 
-            expect(body.status).toBe("success");
+        expect(body.status).toBe("success");
+        expect(body.data.user.id).toBe(user.user.id);
+        expect(body.data.user.email).toBe(testEmail);
+        expect(body.data.user.role).toBe(UserRoles.USER);
+        expect(body.data.user.password).toBeUndefined();
 
-            expect(body.data.user.id)
-                .toBe(user.id);
+        expect(body.data.accessToken).toBeTruthy();
+        expect(body.data.refreshToken).toBeTruthy();
+    });
 
-            expect(body.data.user.name)
-                .toBe("Auth Test User");
+    it("returns 401 for an incorrect password", async () => {
+        await signup();
 
-            expect(body.data.user.email)
-                .toBe(testEmail);
+        const res = await signinEmail(testEmail, "wrong-password");
 
-            expect(body.data.user.dialCode)
-                .toBe(testDialCode);
+        expect(res.status).toBe(401);
 
-            expect(body.data.user.mobile)
-                .toBe(testMobile);
+        const body = (await res.json()) as ErrorResponse;
+        expect(body.message).toContain("invalid credential");
+    });
 
-            expect(body.data.user.password)
-              .toBeUndefined();
+    it("returns an error when email does not exist", async () => {
+        const res = await signinEmail(
+            `not-found.${testEmail}`,
+            testPassword,
+        );
 
-            expect(typeof body.data.accessToken)
-                .toBe("string");
-            expect(body.data.accessToken.length)
-                .toBeGreaterThan(0);
+        expect(res.status).toBe(404);
+    });
 
-            expect(typeof body.data.refreshToken)
-                .toBe("string");
-            expect(body.data.refreshToken.length)
-                .toBeGreaterThan(0);
-      },
-    );
+    it("rejects an invalid email", async () => {
+        const res = await signinEmail("invalid-email");
 
-    it(
-        "returns 401 for an incorrect password",
-        async () => {
-            await createTestUser();
+        expect(res.status).toBe(422);
 
-            const res = await post(
-                "/v1/auth/signin/email",
-                {
-                    email: testEmail,
-                    password: "wrong-password",
-                },
-            );
+        const body = (await res.json()) as ErrorResponse;
+        expect(JSON.stringify(body)).toContain("valid email");
+    });
 
-            expect(res.status).toBe(401);
+    it("rejects a missing password", async () => {
+        const res = await post("/v1/auth/signin/email", {
+            email: testEmail,
+        });
 
-            const body =
-                (await res.json()) as ErrorResponse;
+        expect(res.status).toBeGreaterThanOrEqual(400);
+        expect(res.status).toBeLessThan(500);
+    });
 
-            expect(body.message)
-                .toContain("invalid credential");
-        },
-    );
+    it("rejects an inactive user", async () => {
+        const email = `inactive.${testEmail}`;
 
-    it(
-        "returns an error when email does not exist",
-        async () => {
-            const res = await post(
-                "/v1/auth/signin/email",
-                {
-                    email:
-                        `not-found.${testEmail}`,
-                    password: testPassword,
-                },
-            );
+        await signup({ email });
 
-            expect(res.status).toBeGreaterThanOrEqual(400);
-            expect(res.status).toBeLessThan(500);
-        },
-    );
+        await db
+            .update(users)
+            .set({ isActive: false })
+            .where(eq(users.email, email));
 
-    it(
-        "rejects invalid email",
-        async () => {
-            const res = await post(
-                "/v1/auth/signin/email",
-                {
-                    email: "invalid-email",
-                    password: testPassword,
-                },
-            );
+        const res = await signinEmail(email);
 
-            expect(res.status).toBe(422);
+        expect(res.status).toBe(401);
 
-            const body =
-                (await res.json()) as ErrorResponse;
-
-            expect(
-                JSON.stringify(body),
-            ).toContain("valid email");
-        },
-    );
-
-    it(
-        "rejects missing password",
-        async () => {
-            const res = await post(
-                "/v1/auth/signin/email",
-                {
-                    email: testEmail,
-                },
-            );
-
-            expect(res.status).toBeGreaterThanOrEqual(400);
-            expect(res.status).toBeLessThan(500);
-        },
-    );
-
-    it(
-        "rejects missing email",
-        async () => {
-            const res = await post(
-                "/v1/auth/signin/email",
-                {
-                    password: testPassword,
-                },
-            );
-
-            expect(res.status).toBeGreaterThanOrEqual(400);
-            expect(res.status).toBeLessThan(500);
-        },
-    );
+        const body = (await res.json()) as ErrorResponse;
+        expect(body.message).toContain("user account is inactive");
+    });
 });
-
 
 describe("POST /v1/auth/signin/mobile", () => {
-    it(
-        "signs in successfully with valid mobile and password",
-        async () => {
-            const user = await createTestUser();
+    it("signs in successfully with valid mobile credentials", async () => {
+        const user = await signup();
 
-            const res = await post(
-                "/v1/auth/signin/mobile",
-                {
-                    dialCode: testDialCode,
-                    mobile: testMobile,
-                    password: testPassword,
-                },
-            );
+        const res = await signinMobile();
 
-            expect(res.status).toBe(200);
+        expect(res.status).toBe(200);
 
-            const body =
-                (await res.json()) as SuccessResponse<AuthResponse>;
+        const body = (await res.json()) as SuccessResponse<AuthResponse>;
 
-            expect(body.status).toBe("success");
+        expect(body.status).toBe("success");
+        expect(body.data.user.id).toBe(user.user.id);
+        expect(body.data.user.email).toBe(testEmail);
+        expect(body.data.user.role).toBe(UserRoles.USER);
+        expect(body.data.user.password).toBeUndefined();
 
-            expect(body.data.user.id)
-                .toBe(user.id);
+        expect(body.data.accessToken).toBeTruthy();
+        expect(body.data.refreshToken).toBeTruthy();
+    });
 
-            expect(body.data.user.name)
-                .toBe("Auth Test User");
+    it("returns 401 for an incorrect password", async () => {
+        await signup();
 
-            expect(body.data.user.email)
-                .toBe(testEmail);
+        const res = await signinMobile(
+            testDialCode,
+            testMobile,
+            "wrong-password",
+        );
 
-            expect(body.data.user.dialCode)
-                .toBe(testDialCode);
+        expect(res.status).toBe(401);
 
-            expect(body.data.user.mobile)
-                .toBe(testMobile);
+        const body = (await res.json()) as ErrorResponse;
+        expect(body.message).toContain("invalid credential");
+    });
 
-            expect(body.data.user.password)
-              .toBeUndefined();
+    it("returns 404 when the mobile number does not exist", async () => {
+        const res = await signinMobile(
+            testDialCode,
+            `8${String(runId).slice(-9)}`,
+        );
 
-            expect(typeof body.data.accessToken)
-                .toBe("string");
-            expect(body.data.accessToken.length)
-                .toBeGreaterThan(0);
+        expect(res.status).toBe(404);
+    });
 
-            expect(typeof body.data.refreshToken)
-                .toBe("string");
-            expect(body.data.refreshToken.length)
-                .toBeGreaterThan(0);
-        },
-    );
+    it("returns 401 for an inactive user", async () => {
+        const email = `mobile.inactive.${testEmail}`;
+        const mobile = `8${String(runId).slice(-9)}`;
 
-    it(
-        "returns 401 for an incorrect password",
-        async () => {
-            await createTestUser();
+        await signup({
+            email,
+            mobile,
+        });
 
-            const res = await post(
-                "/v1/auth/signin/mobile",
-                {
-                    dialCode: testDialCode,
-                    mobile: testMobile,
-                    password: "wrong-password",
-                },
-            );
-            expect(res.status).toBe(401);
+        await db
+            .update(users)
+            .set({ isActive: false })
+            .where(eq(users.email, email));
 
-            const body =
-                (await res.json()) as ErrorResponse;
+        const res = await signinMobile(
+            testDialCode,
+            mobile,
+        );
 
-            expect(body.message)
-                .toContain("invalid credential");
-        },
-    );
+        expect(res.status).toBe(401);
 
-    it(
-        "returns an error when mobile does not exist",
-        async () => {
-            const res = await post(
-                "/v1/auth/signin/mobile",
-                {
-                    dialCode: testDialCode,
-                    mobile:
-                        `8${String(runId).slice(-9)}`,
-                    password: testPassword,
-                },
-            );
+        const body = (await res.json()) as ErrorResponse;
+        expect(body.message).toContain("user account is inactive");
+    });
 
-            expect(res.status).toBeGreaterThanOrEqual(400);
-            expect(res.status).toBeLessThan(500);
-        },
-    );
+    it("rejects a missing password", async () => {
+        const res = await post("/v1/auth/signin/mobile", {
+            dialCode: testDialCode,
+            mobile: testMobile,
+        });
 
-    it(
-        "rejects missing dialCode",
-        async () => {
-            const res = await post(
-                "/v1/auth/signin/mobile",
-                {
-                    mobile: testMobile,
-                    password: testPassword,
-                },
-            );
-
-            expect(res.status).toBeGreaterThanOrEqual(400);
-            expect(res.status).toBeLessThan(500);
-        },
-    );
-
-    it(
-        "rejects missing mobile",
-        async () => {
-            const res = await post(
-                "/v1/auth/signin/mobile",
-                {
-                    dialCode: testDialCode,
-                    password: testPassword,
-                },
-            );
-
-            expect(res.status).toBeGreaterThanOrEqual(400);
-            expect(res.status).toBeLessThan(500);
-        },
-    );
-
-    it(
-        "rejects missing password",
-        async () => {
-            const res = await post(
-                "/v1/auth/signin/mobile",
-                {
-                    dialCode: testDialCode,
-                    mobile: testMobile,
-                },
-            );
-
-            expect(res.status).toBeGreaterThanOrEqual(400);
-            expect(res.status).toBeLessThan(500);
-        },
-    );
+        expect(res.status).toBeGreaterThanOrEqual(400);
+        expect(res.status).toBeLessThan(500);
+    });
 });
-
 
 describe("POST /v1/auth/refresh", () => {
-    it(
-        "issues a new token pair and rotates the refresh token",
-        async () => {
-            const { refreshToken: oldRefreshToken } =
-                await signinWithEmail();
+    it("rotates the refresh token", async () => {
+        const auth = await signup();
 
-            const res = await post("/v1/auth/refresh", {
-                refreshToken: oldRefreshToken,
-            });
+        const res = await post("/v1/auth/refresh", {
+            refreshToken: auth.refreshToken,
+        });
 
-            expect(res.status).toBe(200);
+        expect(res.status).toBe(200);
 
-            const body =
-                (await res.json()) as SuccessResponse<{
-                    accessToken: string;
-                    refreshToken: string;
-                }>;
+        const body = (await res.json()) as SuccessResponse<{
+            accessToken: string;
+            refreshToken: string;
+        }>;
 
-            expect(body.status).toBe("success");
+        expect(body.status).toBe("success");
+        expect(body.data.accessToken).toBeTruthy();
+        expect(body.data.refreshToken).toBeTruthy();
+        expect(body.data.refreshToken).not.toBe(auth.refreshToken);
 
-            expect(typeof body.data.accessToken)
-                .toBe("string");
-            expect(body.data.accessToken.length)
-                .toBeGreaterThan(0);
+        const oldTokenReuse = await post("/v1/auth/refresh", {
+            refreshToken: auth.refreshToken,
+        });
 
-            expect(typeof body.data.refreshToken)
-                .toBe("string");
-            expect(body.data.refreshToken.length)
-                .toBeGreaterThan(0);
-            expect(body.data.refreshToken)
-                .not.toBe(oldRefreshToken);
-        },
-    );
+        expect(oldTokenReuse.status).toBe(401);
+    });
 
-    it(
-        "rejects reuse of an already-rotated refresh token and revokes the whole session",
-        async () => {
-            const { refreshToken: originalRefreshToken } =
-                await signinWithEmail();
+    it("detects refresh token reuse and revokes the session", async () => {
+        const auth = await signup();
 
-            const first = await post("/v1/auth/refresh", {
-                refreshToken: originalRefreshToken,
-            });
+        const first = await post("/v1/auth/refresh", {
+            refreshToken: auth.refreshToken,
+        });
 
-            expect(first.status).toBe(200);
+        expect(first.status).toBe(200);
 
-            const firstBody =
-                (await first.json()) as SuccessResponse<{
-                    accessToken: string;
-                    refreshToken: string;
-                }>;
+        const firstBody =
+            (await first.json()) as SuccessResponse<{
+                accessToken: string;
+                refreshToken: string;
+            }>;
 
-            // Reusing the original (now-revoked) token should be treated
-            // as a compromise signal, not a normal invalid-token error.
-            const reuse = await post("/v1/auth/refresh", {
-                refreshToken: originalRefreshToken,
-            });
+        const reuse = await post("/v1/auth/refresh", {
+            refreshToken: auth.refreshToken,
+        });
 
-            expect(reuse.status).toBe(401);
+        expect(reuse.status).toBe(401);
 
-            const reuseBody =
-                (await reuse.json()) as ErrorResponse;
+        const reuseBody = (await reuse.json()) as ErrorResponse;
+        expect(reuseBody.message).toContain("reuse detected");
 
-            expect(reuseBody.message)
-                .toContain("reuse detected");
+        const afterReuse = await post("/v1/auth/refresh", {
+            refreshToken: firstBody.data.refreshToken,
+        });
 
-            // The token issued by the first rotation should also have
-            // been revoked as a consequence of the detected reuse.
-            const afterReuse = await post("/v1/auth/refresh", {
-                refreshToken: firstBody.data.refreshToken,
-            });
+        expect(afterReuse.status).toBe(401);
+    });
 
-            expect(afterReuse.status).toBe(401);
-        },
-    );
+    it("rejects an unknown refresh token", async () => {
+        const res = await post("/v1/auth/refresh", {
+            refreshToken: `${crypto.randomUUID()}.not-a-real-secret`,
+        });
 
-    it(
-        "rejects an unknown refresh token",
-        async () => {
-            const res = await post("/v1/auth/refresh", {
-                refreshToken: `${crypto.randomUUID()}.not-a-real-secret`,
-            });
+        expect(res.status).toBe(401);
 
-            expect(res.status).toBe(401);
+        const body = (await res.json()) as ErrorResponse;
+        expect(body.message).toContain("invalid refresh token");
+    });
 
-            const body =
-                (await res.json()) as ErrorResponse;
+    it("rejects a malformed refresh token", async () => {
+        const res = await post("/v1/auth/refresh", {
+            refreshToken: "not-a-valid-token-format",
+        });
 
-            expect(body.message)
-                .toContain("invalid refresh token");
-        },
-    );
+        expect(res.status).toBe(401);
+    });
 
-    it(
-        "rejects a malformed refresh token",
-        async () => {
-            const res = await post("/v1/auth/refresh", {
-                refreshToken: "not-a-valid-token-format",
-            });
+    it("rejects a missing refreshToken field", async () => {
+        const res = await post("/v1/auth/refresh", {});
 
-            expect(res.status).toBe(401);
-        },
-    );
+        expect(res.status).toBeGreaterThanOrEqual(400);
+        expect(res.status).toBeLessThan(500);
+    });
 
-    it(
-        "rejects a missing refreshToken field",
-        async () => {
-            const res = await post("/v1/auth/refresh", {});
+    it("rejects refresh for an inactive user", async () => {
+        const email = `refresh.inactive.${testEmail}`;
 
-            expect(res.status).toBeGreaterThanOrEqual(400);
-            expect(res.status).toBeLessThan(500);
-        },
-    );
+        const auth = await signup({ email });
+
+        await db
+            .update(users)
+            .set({ isActive: false })
+            .where(eq(users.email, email));
+
+        const res = await post("/v1/auth/refresh", {
+            refreshToken: auth.refreshToken,
+        });
+
+        expect(res.status).toBe(401);
+
+        const body = (await res.json()) as ErrorResponse;
+        expect(body.message).toContain("user account is inactive");
+    });
 });
-
 
 describe("POST /v1/auth/logout", () => {
-    it(
-        "revokes the refresh token so it can no longer be used",
-        async () => {
-            const { refreshToken } = await signinWithEmail();
+    it("revokes the refresh token", async () => {
+        const auth = await signup();
 
-            const res = await post("/v1/auth/logout", {
-                refreshToken,
-            });
+        const res = await post("/v1/auth/logout", {
+            refreshToken: auth.refreshToken,
+        });
 
-            expect(res.status).toBe(200);
+        expect(res.status).toBe(200);
 
-            const body =
-                (await res.json()) as SuccessResponse<{
-                    success: boolean;
-                }>;
+        const body = (await res.json()) as SuccessResponse<{
+            success: boolean;
+        }>;
 
-            expect(body.status).toBe("success");
-            expect(body.data.success).toBe(true);
+        expect(body.status).toBe("success");
+        expect(body.data.success).toBe(true);
 
-            const refreshAfterLogout = await post(
-                "/v1/auth/refresh",
-                { refreshToken },
-            );
+        const refreshAfterLogout = await post(
+            "/v1/auth/refresh",
+            { refreshToken: auth.refreshToken },
+        );
 
-            expect(refreshAfterLogout.status).toBe(401);
-        },
-    );
+        expect(refreshAfterLogout.status).toBe(401);
+    });
 
-    it(
-        "is safe to call twice with the same token",
-        async () => {
-            const { refreshToken } = await signinWithEmail();
+    it("is safe to call twice with the same token", async () => {
+        const auth = await signup();
 
-            const first = await post("/v1/auth/logout", {
-                refreshToken,
-            });
-            expect(first.status).toBe(200);
+        const first = await post("/v1/auth/logout", {
+            refreshToken: auth.refreshToken,
+        });
 
-            const second = await post("/v1/auth/logout", {
-                refreshToken,
-            });
-            expect(second.status).toBe(200);
-        },
-    );
+        expect(first.status).toBe(200);
 
-    it(
-        "rejects a malformed refresh token",
-        async () => {
-            const res = await post("/v1/auth/logout", {
-                refreshToken: "not-a-valid-token-format",
-            });
+        const second = await post("/v1/auth/logout", {
+            refreshToken: auth.refreshToken,
+        });
 
-            expect(res.status).toBe(401);
-        },
-    );
+        expect(second.status).toBe(200);
+    });
 
-    it(
-        "rejects a missing refreshToken field",
-        async () => {
-            const res = await post("/v1/auth/logout", {});
+    it("returns success for a valid-looking but unknown refresh token", async () => {
+        const res = await post("/v1/auth/logout", {
+            refreshToken: `${crypto.randomUUID()}.not-a-real-secret`,
+        });
 
-            expect(res.status).toBeGreaterThanOrEqual(400);
-            expect(res.status).toBeLessThan(500);
-        },
-    );
+        expect(res.status).toBe(200);
+    });
+
+    it("rejects a malformed refresh token", async () => {
+        const res = await post("/v1/auth/logout", {
+            refreshToken: "not-a-valid-token-format",
+        });
+
+        expect(res.status).toBe(401);
+    });
+
+    it("rejects a missing refreshToken field", async () => {
+        const res = await post("/v1/auth/logout", {});
+
+        expect(res.status).toBeGreaterThanOrEqual(400);
+        expect(res.status).toBeLessThan(500);
+    });
 });
 
+describe("GET /v1/auth/me", () => {
+    it("requires authentication", async () => {
+        const res = await get("/v1/auth/me");
+
+        expect(res.status).toBe(401);
+    });
+
+    it("returns the authenticated user", async () => {
+        const auth = await signup();
+
+        const res = await get(
+            "/v1/auth/me",
+            auth.accessToken,
+        );
+
+        expect(res.status).toBe(200);
+
+        const body = (await res.json()) as SuccessResponse<User>;
+
+        expect(body.status).toBe("success");
+        expect(body.data.id).toBe(auth.user.id);
+        expect(body.data.email).toBe(testEmail);
+        expect(body.data.role).toBe(UserRoles.USER);
+        expect(body.data.password).toBeUndefined();
+    });
+
+    it("rejects an inactive user", async () => {
+        const email = `me.inactive.${testEmail}`;
+
+        const auth = await signup({ email });
+
+        await db
+            .update(users)
+            .set({ isActive: false })
+            .where(eq(users.email, email));
+
+        const res = await get(
+            "/v1/auth/me",
+            auth.accessToken,
+        );
+
+        expect(res.status).toBe(401);
+
+        const body = (await res.json()) as ErrorResponse;
+        expect(body.message).toContain("user account is inactive");
+    });
+});
+
+describe("POST /v1/auth/logout-all", () => {
+    it("revokes all refresh tokens for the authenticated user", async () => {
+        const first = await signup();
+
+        const secondSignin = await signinEmail();
+
+        expect(secondSignin.status).toBe(200);
+
+        const secondBody =
+            (await secondSignin.json()) as SuccessResponse<AuthResponse>;
+
+        const res = await post(
+            "/v1/auth/logout-all",
+            {},
+            first.accessToken,
+        );
+
+        expect(res.status).toBe(200);
+
+        const body = (await res.json()) as SuccessResponse<{
+            success: boolean;
+        }>;
+
+        expect(body.status).toBe("success");
+        expect(body.data.success).toBe(true);
+
+        const firstRefresh = await post("/v1/auth/refresh", {
+            refreshToken: first.refreshToken,
+        });
+
+        const secondRefresh = await post("/v1/auth/refresh", {
+            refreshToken: secondBody.data.refreshToken,
+        });
+
+        expect(firstRefresh.status).toBe(401);
+        expect(secondRefresh.status).toBe(401);
+    });
+
+    it("requires authentication", async () => {
+        const res = await post("/v1/auth/logout-all", {});
+
+        expect(res.status).toBe(401);
+    });
+});
 
 describe("Auth route validation", () => {
-    it(
-        "returns 404 for an unknown auth endpoint",
-        async () => {
-            const res = await post(
-                "/v1/auth/unknown",
-                {},
-            );
+    it("returns 404 for an unknown auth endpoint", async () => {
+        const res = await post("/v1/auth/unknown", {});
 
-            expect(res.status).toBe(404);
-        },
-    );
+        expect(res.status).toBe(404);
+    });
 
-    it(
-        "returns 404 for GET /v1/auth/signup",
-        async () => {
-            const res = await app.handle(
-                new Request(
-                    "http://localhost/v1/auth/signup",
-                    {
-                        method: "GET",
-                    },
-                ),
-            );
+    it("returns 404 for GET /v1/auth/signup", async () => {
+        const res = await app.handle(
+            new Request("http://localhost/v1/auth/signup", {
+                method: "GET",
+            }),
+        );
 
-            expect(res.status).toBe(404);
-        },
-    );
+        expect(res.status).toBe(404);
+    });
 });

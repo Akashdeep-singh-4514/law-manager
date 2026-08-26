@@ -8,11 +8,8 @@ import {
 import { eq } from "drizzle-orm";
 
 import { buildTestApp } from "./build-app";
-import {
-    db,
-} from "../src/db";
-
-import { users } from "../src/modules/users/users.schema";
+import { db } from "../src/db";
+import { users, UserRoles } from "../src/modules/users/users.schema";
 
 interface User {
     id: number;
@@ -21,27 +18,15 @@ interface User {
     dialCode: string;
     mobile: string;
     isActive: boolean;
-    devices: string[] | null;
+    role: UserRoles;
+    devices: string[];
     password?: never;
 }
 
-interface CreateUserRequest {
-    name: string;
-    email: string;
-    password: string;
-    dialCode: string;
-    mobile: string;
-    isActive?: boolean;
-    devices?: string[];
-}
-
-interface UpdateUserRequest {
-    name?: string;
-    email?: string;
-    dialCode?: string;
-    mobile?: string;
-    isActive?: boolean;
-    devices?: string[];
+interface AuthResponse {
+    user: User;
+    accessToken: string;
+    refreshToken: string;
 }
 
 interface SuccessResponse<T> {
@@ -58,941 +43,686 @@ interface ErrorResponse {
     data?: unknown;
 }
 
-type ApiResponse<T> = SuccessResponse<T> | ErrorResponse;
-
 const app = buildTestApp();
-
 const runId = Date.now();
 
-const testEmail =
-    `test.user.${runId}@example.com`;
-
+const testEmail = `users.test.${runId}@example.com`;
 const testDialCode = "+91";
+const testMobile = `9${String(runId).slice(-9)}`;
+const testPassword = "password123";
 
-const testMobile =
-    `9${String(runId).slice(-9)}`;
+async function request(
+    path: string,
+    init: RequestInit = {},
+): Promise<Response> {
+    return app.handle(
+        new Request(`http://localhost${path}`, init),
+    );
+}
 
 async function post(
     path: string,
-    body: CreateUserRequest,
+    body: Record<string, unknown>,
+    accessToken?: string,
 ): Promise<Response> {
-    return app.handle(
-        new Request(`http://localhost${path}`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify(body),
-        }),
-    );
+    return request(path, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            ...(accessToken
+                ? {
+                      Authorization: `Bearer ${accessToken}`,
+                  }
+                : {}),
+        },
+        body: JSON.stringify(body),
+    });
 }
 
 async function get(
     path: string,
+    accessToken?: string,
 ): Promise<Response> {
-    return app.handle(
-        new Request(`http://localhost${path}`),
-    );
+    return request(path, {
+        method: "GET",
+        headers: accessToken
+            ? {
+                  Authorization: `Bearer ${accessToken}`,
+              }
+            : undefined,
+    });
 }
 
 async function patch(
     path: string,
-    body: UpdateUserRequest,
+    body: Record<string, unknown>,
+    accessToken?: string,
 ): Promise<Response> {
-    return app.handle(
-        new Request(`http://localhost${path}`, {
-            method: "PATCH",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify(body),
-        }),
-    );
+    return request(path, {
+        method: "PATCH",
+        headers: {
+            "Content-Type": "application/json",
+            ...(accessToken
+                ? {
+                      Authorization: `Bearer ${accessToken}`,
+                  }
+                : {}),
+        },
+        body: JSON.stringify(body),
+    });
 }
 
 async function del(
     path: string,
+    accessToken?: string,
 ): Promise<Response> {
-    return app.handle(
-        new Request(`http://localhost${path}`, {
-            method: "DELETE",
-        }),
-    );
+    return request(path, {
+        method: "DELETE",
+        headers: accessToken
+            ? {
+                  Authorization: `Bearer ${accessToken}`,
+              }
+            : undefined,
+    });
 }
 
-
-afterEach(async () => {
-
-    await db
-        .delete(users)
-        .where(eq(users.email, testEmail));
-
-    await db
-        .delete(users)
-        .where(
-            eq(
-                users.email,
-                `updated.${testEmail}`,
-            ),
-        );
-
-    await db
-        .delete(users)
-        .where(
-            eq(
-                users.email,
-                `multi.${testEmail}`,
-            ),
-        );
-
-    await db
-        .delete(users)
-        .where(
-            eq(
-                users.email,
-                `other.${testEmail}`,
-            ),
-        );
-
-    await db
-        .delete(users)
-        .where(
-            eq(
-                users.email,
-                `other.mobile.${testEmail}`,
-            ),
-        );
-
-    await db
-        .delete(users)
-        .where(
-            eq(
-                users.email,
-                `second.${testEmail}`,
-            ),
-        );
-});
-
-async function createTestUser(): Promise<User> {
-    const res = await post("/v1/users", {
+async function signup(
+    overrides: Record<string, unknown> = {},
+): Promise<AuthResponse> {
+    const res = await post("/v1/auth/signup", {
         name: "Jane Doe",
         email: testEmail,
-        password: "password123",
+        password: testPassword,
         dialCode: testDialCode,
         mobile: testMobile,
+        ...overrides,
     });
 
     expect(res.status).toBe(200);
 
-    const body =
-        (await res.json()) as ApiResponse<User>;
+    const body = (await res.json()) as SuccessResponse<AuthResponse>;
 
     if (body.status !== "success") {
         throw new Error(
-            `Failed to create test user: ${body.message}`,
+            `Failed to signup test user: ${body.message}`,
         );
     }
 
     return body.data;
 }
 
-describe("POST /v1/users", () => {
-    it(
-        "returns 422 for an invalid email",
-        async () => {
-            const res = await post("/v1/users", {
-                name: "Jane Doe",
-                email: "not-an-email",
-                password: "password123",
-                dialCode: testDialCode,
-                mobile: testMobile,
-            });
+async function createUser(
+    overrides: Record<string, unknown> = {},
+): Promise<AuthResponse> {
+    return signup(overrides);
+}
 
-            expect(res.status).toBe(422);
+async function cleanupByEmails(...emails: string[]) {
+    for (const email of emails) {
+        await db
+            .delete(users)
+            .where(eq(users.email, email));
+    }
+}
 
-            const body =
-                (await res.json()) as ErrorResponse;
-
-            expect(
-                JSON.stringify(body),
-            ).toContain("valid email");
-        },
-    );
-
-    it.only(
-        "creates a user successfully",
-        async () => {
-            const res = await post("/v1/users", {
-                name: "Jane Doe",
-                email: testEmail,
-                password: "password123",
-                dialCode: testDialCode,
-                mobile: testMobile,
-            });
-
-            expect(res.status).toBe(200);
-
-            const body =
-                (await res.json()) as SuccessResponse<User>;
-
-            expect(body.status).toBe("success");
-
-            expect(body.data.id)
-                .toBeDefined();
-
-            expect(body.data.name)
-                .toBe("Jane Doe");
-
-            expect(body.data.email)
-                .toBe(testEmail);
-
-            expect(body.data.dialCode)
-                .toBe(testDialCode);
-
-            expect(body.data.mobile)
-                .toBe(testMobile);
-
-            expect(body.data.password)
-                .toBeUndefined();
-        },
-    );
-
-    it(
-        "rejects duplicate email with 409",
-        async () => {
-            await post("/v1/users", {
-                name: "Jane Doe",
-                email: testEmail,
-                password: "password123",
-                dialCode: testDialCode,
-                mobile: testMobile,
-            });
-
-            const res = await post("/v1/users", {
-                name: "Jane Doe Again",
-                email: testEmail,
-                password: "password123",
-                dialCode: testDialCode,
-                mobile:
-                    `8${String(runId).slice(-9)}`,
-            });
-
-            expect(res.status).toBe(409);
-
-            const body =
-                (await res.json()) as ErrorResponse;
-
-            expect(body.message)
-                .toContain(
-                    "email already exists",
-                );
-        },
-    );
-
-    it(
-        "rejects duplicate dialCode + mobile with 409",
-        async () => {
-            await post("/v1/users", {
-                name: "Jane Doe",
-                email: testEmail,
-                password: "password123",
-                dialCode: testDialCode,
-                mobile: testMobile,
-            });
-
-            const otherEmail =
-                `other.${testEmail}`;
-
-            const res = await post("/v1/users", {
-                name: "Someone Else",
-                email: otherEmail,
-                password: "password123",
-                dialCode: testDialCode,
-                mobile: testMobile,
-            });
-
-            expect(res.status).toBe(409);
-
-            const body =
-                (await res.json()) as ErrorResponse;
-
-            expect(body.message)
-                .toContain(
-                    "mobile number already exists",
-                );
-
-            await db
-                .delete(users)
-                .where(
-                    eq(
-                        users.email,
-                        otherEmail,
-                    ),
-                );
-        },
-    );
-
-    it(
-        "creates a user with optional fields",
-        async () => {
-            const res = await post("/v1/users", {
-                name: "Jane Doe",
-                email: testEmail,
-                password: "password123",
-                dialCode: testDialCode,
-                mobile: testMobile,
-                isActive: true,
-                devices: [
-                    "device-1",
-                    "device-2",
-                ],
-            });
-
-            expect(res.status).toBe(200);
-
-            const body =
-                (await res.json()) as SuccessResponse<User>;
-
-            expect(body.data.isActive)
-                .toBe(true);
-
-            expect(body.data.devices)
-                .toEqual([]);
-        },
+afterEach(async () => {
+    await cleanupByEmails(
+        testEmail,
+        `updated.${testEmail}`,
+        `second.${testEmail}`,
+        `other.${testEmail}`,
+        `role.${testEmail}`,
+        `admin.${testEmail}`,
+        `password.${testEmail}`,
     );
 });
+
+describe("POST /v1/users", () => {
+    it("is not exposed because user creation is handled by auth signup", async () => {
+        const res = await post("/v1/users", {
+            name: "Should Not Be Created",
+            email: testEmail,
+            password: testPassword,
+            dialCode: testDialCode,
+            mobile: testMobile,
+        });
+
+        expect(res.status).toBe(404);
+    });
+});
+
 
 describe("GET /v1/users", () => {
-    it(
-        "returns users successfully",
-        async () => {
-            const res =
-                await get("/v1/users");
+    it("returns users successfully", async () => {
+        const res = await get("/v1/users");
 
-            expect(res.status).toBe(200);
+        expect(res.status).toBe(200);
 
-            const body =
-                (await res.json()) as SuccessResponse<User[]>;
+        const body = (await res.json()) as SuccessResponse<User[]>;
 
-            expect(body.status)
-                .toBe("success");
+        expect(body.status).toBe("success");
+        expect(Array.isArray(body.data)).toBe(true);
 
-            expect(Array.isArray(body.data))
-                .toBe(true);
+        for (const user of body.data) {
+            expect(user.password).toBeUndefined();
+            expect(user.role).toBeDefined();
+        }
+    });
 
-            for (const user of body.data) {
-                expect(user.password).toBeUndefined();
-            }
-        },
-    );
+    it("returns the created user without password", async () => {
+        const auth = await createUser();
 
-    it(
-        "returns the created user",
-        async () => {
-            await createTestUser();
+        const res = await get(
+            "/v1/users",
+            auth.accessToken,
+        );
 
-            const res =
-                await get("/v1/users");
+        expect(res.status).toBe(200);
 
-            expect(res.status).toBe(200);
+        const body = (await res.json()) as SuccessResponse<User[]>;
 
-            const body =
-                (await res.json()) as SuccessResponse<User[]>;
+        const user = body.data.find(
+            (item) => item.email === testEmail,
+        );
 
-            const user =
-                body.data.find(
-                    (item) =>
-                        item.email === testEmail,
-                );
-
-            expect(user)
-                .toBeDefined();
-
-            expect(user?.email)
-                .toBe(testEmail);
-
-            expect(user?.password)
-                .toBeUndefined();
-        },
-    );
+        expect(user).toBeDefined();
+        expect(user?.name).toBe("Jane Doe");
+        expect(user?.email).toBe(testEmail);
+        expect(user?.role).toBe(UserRoles.USER);
+        expect(user?.password).toBeUndefined();
+    });
 });
 
+
 describe("GET /v1/users/:id", () => {
-    it(
-        "returns 404 for a non-existent user",
-        async () => {
-            const res =
-                await get(
-                    "/v1/users/999999999",
-                );
+    it("requires authentication", async () => {
+        const auth = await createUser();
 
-            expect(res.status)
-                .toBe(404);
-        },
-    );
+        const res = await get(
+            `/v1/users/${auth.user.id}`,
+        );
 
-    it(
-        "returns the user by id",
-        async () => {
-            const user =
-                await createTestUser();
+        expect(res.status).toBe(401);
+    });
 
-            const res =
-                await get(
-                    `/v1/users/${user.id}`,
-                );
+    it("returns the authenticated user's profile", async () => {
+        const auth = await createUser();
 
-            expect(res.status)
-                .toBe(200);
+        const res = await get(
+            `/v1/users/${auth.user.id}`,
+            auth.accessToken,
+        );
 
-            const body =
-                (await res.json()) as SuccessResponse<User>;
+        expect(res.status).toBe(200);
 
-            expect(body.status)
-                .toBe("success");
+        const body = (await res.json()) as SuccessResponse<User>;
 
-            expect(body.data.id)
-                .toBe(user.id);
+        expect(body.status).toBe("success");
+        expect(body.data.id).toBe(auth.user.id);
+        expect(body.data.email).toBe(testEmail);
+        expect(body.data.role).toBe(UserRoles.USER);
+        expect(body.data.password).toBeUndefined();
+    });
 
-            expect(body.data.name)
-                .toBe("Jane Doe");
+    it("does not allow a user to access another user's profile", async () => {
+        const first = await createUser();
 
-            expect(body.data.email)
-                .toBe(testEmail);
+        const second = await signup({
+            email: `second.${testEmail}`,
+            mobile: `8${String(runId).slice(-9)}`,
+        });
 
-            expect(body.data.password)
-                .toBeUndefined();
-        },
-    );
+        const res = await get(
+            `/v1/users/${second.user.id}`,
+            first.accessToken,
+        );
+
+        expect(res.status).toBe(403);
+    });
+
+    it("returns 403 for a non-existent user because self middleware runs first", async () => {
+        const auth = await createUser();
+
+        const res = await get(
+            "/v1/users/999999999",
+            auth.accessToken,
+        );
+
+        expect(res.status).toBe(403);
+    });
+
+    it("returns 400 for a non-numeric id", async () => {
+        const auth = await createUser();
+
+        const res = await get(
+            "/v1/users/not-a-number",
+            auth.accessToken,
+        );
+
+        expect(res.status).toBe(400);
+    });
 });
 
 describe("PATCH /v1/users/:id", () => {
-    it(
-        "updates the user's name",
-        async () => {
-            const user =
-                await createTestUser();
-
-            const res = await patch(
-                `/v1/users/${user.id}`,
-                {
-                    name: "Jane Updated",
-                },
-            );
-
-            expect(res.status)
-                .toBe(200);
-
-            const body =
-                (await res.json()) as SuccessResponse<User>;
-
-            expect(body.status)
-                .toBe("success");
-
-            expect(body.data.id)
-                .toBe(user.id);
-
-            expect(body.data.name)
-                .toBe("Jane Updated");
-
-            expect(body.data.email)
-                .toBe(testEmail);
-
-            expect(body.data.password)
-                .toBeUndefined();
-        },
-    );
-
-    it(
-        "updates the user's email",
-        async () => {
-            const user =
-                await createTestUser();
-
-            const newEmail =
-                `updated.${testEmail}`;
-
-            const res = await patch(
-                `/v1/users/${user.id}`,
-                {
-                    email: newEmail,
-                },
-            );
-
-            expect(res.status)
-                .toBe(200);
-
-            const body =
-                (await res.json()) as SuccessResponse<User>;
-
-            expect(body.data.email)
-                .toBe(newEmail);
-        },
-    );
-
-    it(
-        "updates the user's mobile",
-        async () => {
-            const user =
-                await createTestUser();
-
-            const newMobile =
-                `8${String(runId).slice(-9)}`;
-
-            const res = await patch(
-                `/v1/users/${user.id}`,
-                {
-                    mobile: newMobile,
-                },
-            );
-
-            expect(res.status)
-                .toBe(200);
-
-            const body =
-                (await res.json()) as SuccessResponse<User>;
-
-            expect(body.data.mobile)
-                .toBe(newMobile);
-        },
-    );
-
-    it(
-        "updates dial code and mobile",
-        async () => {
-            const user =
-                await createTestUser();
-
-            const res = await patch(
-                `/v1/users/${user.id}`,
-                {
-                    dialCode: "+1",
-                    mobile: "9876543210",
-                },
-            );
-
-            expect(res.status)
-                .toBe(200);
-
-            const body =
-                (await res.json()) as SuccessResponse<User>;
-
-            expect(body.data.dialCode)
-                .toBe("+1");
-
-            expect(body.data.mobile)
-                .toBe("9876543210");
-        },
-    );
-
-    it(
-        "updates isActive",
-        async () => {
-            const user =
-                await createTestUser();
-
-            const res = await patch(
-                `/v1/users/${user.id}`,
-                {
-                    isActive: false,
-                },
-            );
-
-            expect(res.status)
-                .toBe(200);
-
-            const body =
-                (await res.json()) as SuccessResponse<User>;
-
-            expect(body.data.isActive)
-                .toBe(false);
-        },
-    );
-
-    it(
-        "updates multiple fields",
-        async () => {
-            const user =
-                await createTestUser();
-
-            const newEmail =
-                `multi.${testEmail}`;
-
-            const res = await patch(
-                `/v1/users/${user.id}`,
-                {
-                    name: "Updated Name",
-                    email: newEmail,
-                    isActive: false,
-                },
-            );
-
-            expect(res.status)
-                .toBe(200);
-
-            const body =
-                (await res.json()) as SuccessResponse<User>;
-
-            expect(body.data.id)
-                .toBe(user.id);
-
-            expect(body.data.name)
-                .toBe("Updated Name");
-
-            expect(body.data.email)
-                .toBe(newEmail);
-
-            expect(body.data.isActive)
-                .toBe(false);
-
-            expect(body.data.password)
-                .toBeUndefined();
-        },
-    );
-
-    it(
-        "returns 404 when updating non-existent user",
-        async () => {
-            const res = await patch(
-                "/v1/users/999999999",
-                {
-                    name: "Does Not Exist",
-                },
-            );
-
-            expect(res.status)
-                .toBe(404);
-        },
-    );
-
-    it(
-        "rejects invalid email",
-        async () => {
-            const user =
-                await createTestUser();
-
-            const res = await patch(
-                `/v1/users/${user.id}`,
-                {
-                    email: "invalid-email",
-                },
-            );
-
-            expect(res.status)
-                .toBe(422);
-
-            const body =
-                (await res.json()) as ErrorResponse;
-
-            expect(
-                JSON.stringify(body),
-            ).toContain("valid email");
-        },
-    );
-
-    it(
-        "rejects duplicate email",
-        async () => {
-            const user =
-                await createTestUser();
-
-            const otherEmail =
-                `other.${testEmail}`;
-
-            await post("/v1/users", {
-                name: "Other User",
-                email: otherEmail,
-                password: "password123",
-                dialCode: "+91",
-                mobile:
-                    `8${String(runId).slice(-9)}`,
-            });
-
-            const res = await patch(
-                `/v1/users/${user.id}`,
-                {
-                    email: otherEmail,
-                },
-            );
-
-            expect(res.status)
-                .toBe(409);
-
-            const body =
-                (await res.json()) as ErrorResponse;
-
-            expect(body.message)
-                .toContain(
-                    "email already exists",
-                );
-
-            await db
-                .delete(users)
-                .where(
-                    eq(
-                        users.email,
-                        otherEmail,
-                    ),
-                );
-        },
-    );
-
-    it(
-        "rejects duplicate dialCode + mobile",
-        async () => {
-            const user =
-                await createTestUser();
-
-            const otherEmail =
-                `other.mobile.${testEmail}`;
-
-            const otherMobile =
-                `8${String(runId + 1).slice(-9)}`;
-
-            await post("/v1/users", {
-                name: "Other User",
-                email: otherEmail,
-                password: "password123",
-                dialCode: "+91",
-                mobile: otherMobile,
-            });
-
-            const res = await patch(
-                `/v1/users/${user.id}`,
-                {
-                    mobile: otherMobile,
-                },
-            );
-
-            expect(res.status)
-                .toBe(409);
-
-            const body =
-                (await res.json()) as ErrorResponse;
-
-            expect(body.message)
-                .toContain(
-                    "mobile number already exists",
-                );
-
-            await db
-                .delete(users)
-                .where(
-                    eq(
-                        users.email,
-                        otherEmail,
-                    ),
-                );
-        },
-    );
-
-    it(
-        "updates only the requested user",
-        async () => {
-            const firstUser =
-                await createTestUser();
-
-            const secondEmail =
-                `second.${testEmail}`;
-
-            const secondRes =
-                await post("/v1/users", {
-                    name: "Second User",
-                    email: secondEmail,
-                    password: "password123",
-                    dialCode: "+91",
-                    mobile:
-                        `7${String(runId).slice(-9)}`,
-                });
-
-            expect(secondRes.status)
-                .toBe(200);
-
-            const secondBody =
-                (await secondRes.json()) as SuccessResponse<User>;
-
-            const secondUser =
-                secondBody.data;
-
-            const res = await patch(
-                `/v1/users/${firstUser.id}`,
-                {
-                    name: "Only First Updated",
-                },
-            );
-
-            expect(res.status)
-                .toBe(200);
-
-            const firstGet =
-                await get(
-                    `/v1/users/${firstUser.id}`,
-                );
-
-            const secondGet =
-                await get(
-                    `/v1/users/${secondUser.id}`,
-                );
-
-            const firstBody =
-                (await firstGet.json()) as SuccessResponse<User>;
-
-            const secondGetBody =
-                (await secondGet.json()) as SuccessResponse<User>;
-
-            expect(firstBody.data.name)
-                .toBe("Only First Updated");
-
-            expect(secondGetBody.data.name)
-                .toBe("Second User");
-
-            await db
-                .delete(users)
-                .where(
-                    eq(
-                        users.email,
-                        secondEmail,
-                    ),
-                );
-        },
-    );
+    it("requires authentication", async () => {
+        const auth = await createUser();
+
+        const res = await patch(
+            `/v1/users/${auth.user.id}`,
+            { name: "Updated" },
+        );
+
+        expect(res.status).toBe(401);
+    });
+
+    it("updates the authenticated user's name", async () => {
+        const auth = await createUser();
+
+        const res = await patch(
+            `/v1/users/${auth.user.id}`,
+            { name: "Jane Updated" },
+            auth.accessToken,
+        );
+
+        expect(res.status).toBe(200);
+
+        const body = (await res.json()) as SuccessResponse<User>;
+
+        expect(body.data.id).toBe(auth.user.id);
+        expect(body.data.name).toBe("Jane Updated");
+        expect(body.data.password).toBeUndefined();
+    });
+
+    it("updates the authenticated user's email", async () => {
+        const auth = await createUser();
+
+        const newEmail = `updated.${testEmail}`;
+
+        const res = await patch(
+            `/v1/users/${auth.user.id}`,
+            { email: newEmail },
+            auth.accessToken,
+        );
+
+        expect(res.status).toBe(200);
+
+        const body = (await res.json()) as SuccessResponse<User>;
+
+        expect(body.data.email).toBe(newEmail);
+    });
+
+    it("updates mobile and dial code", async () => {
+        const auth = await createUser();
+
+        const newMobile = `8${String(runId).slice(-9)}`;
+
+        const res = await patch(
+            `/v1/users/${auth.user.id}`,
+            {
+                dialCode: "+1",
+                mobile: newMobile,
+            },
+            auth.accessToken,
+        );
+
+        expect(res.status).toBe(200);
+
+        const body = (await res.json()) as SuccessResponse<User>;
+
+        expect(body.data.dialCode).toBe("+1");
+        expect(body.data.mobile).toBe(newMobile);
+    });
+
+    it("updates isActive", async () => {
+        const auth = await createUser();
+
+        const res = await patch(
+            `/v1/users/${auth.user.id}`,
+            { isActive: false },
+            auth.accessToken,
+        );
+
+        expect(res.status).toBe(200);
+
+        const body = (await res.json()) as SuccessResponse<User>;
+
+        expect(body.data.isActive).toBe(false);
+    });
+
+    it("rejects an empty update", async () => {
+        const auth = await createUser();
+
+        const res = await patch(
+            `/v1/users/${auth.user.id}`,
+            {},
+            auth.accessToken,
+        );
+
+        expect(res.status).toBe(400);
+    });
+
+    it("rejects password changes through the general update endpoint", async () => {
+        const auth = await createUser();
+
+        const res = await patch(
+            `/v1/users/${auth.user.id}`,
+            { password: "newPassword123" },
+            auth.accessToken,
+        );
+
+        expect(res.status).toBe(400);
+    });
+
+    it("does not allow changing another user's profile", async () => {
+        const first = await createUser();
+
+        const second = await signup({
+            email: `second.${testEmail}`,
+            mobile: `8${String(runId).slice(-9)}`,
+        });
+
+        const res = await patch(
+            `/v1/users/${second.user.id}`,
+            { name: "Should Not Change" },
+            first.accessToken,
+        );
+
+        expect(res.status).toBe(403);
+    });
+
+    it("rejects a duplicate email", async () => {
+        const first = await createUser();
+
+        const second = await signup({
+            email: `second.${testEmail}`,
+            mobile: `8${String(runId).slice(-9)}`,
+        });
+
+        const res = await patch(
+            `/v1/users/${second.user.id}`,
+            { email: first.user.email },
+            second.accessToken,
+        );
+
+        expect(res.status).toBe(409);
+
+        const body = (await res.json()) as ErrorResponse;
+
+        expect(body.message).toContain(
+            "email already exists",
+        );
+    });
+
+    it("rejects a duplicate dialCode + mobile", async () => {
+        const first = await createUser();
+
+        const second = await signup({
+            email: `second.${testEmail}`,
+            mobile: `8${String(runId).slice(-9)}`,
+        });
+
+        const res = await patch(
+            `/v1/users/${second.user.id}`,
+            {
+                dialCode: first.user.dialCode,
+                mobile: first.user.mobile,
+            },
+            second.accessToken,
+        );
+
+        expect(res.status).toBe(409);
+
+        const body = (await res.json()) as ErrorResponse;
+
+        expect(body.message).toContain(
+            "mobile number already exists",
+        );
+    });
+
+    it("returns 403 for a non-existent user because self middleware runs first", async () => {
+        const auth = await createUser();
+
+        const res = await patch(
+            "/v1/users/999999999",
+            { name: "Missing" },
+            auth.accessToken,
+        );
+
+        expect(res.status).toBe(403);
+    });
+
+    it("returns 400 for a non-numeric id", async () => {
+        const auth = await createUser();
+
+        const res = await patch(
+            "/v1/users/not-a-number",
+            { name: "Invalid ID" },
+            auth.accessToken,
+        );
+
+        expect(res.status).toBe(400);
+    });
 });
 
-describe("GET /v1/users/:id validation", () => {
-    it(
-        "returns 422 for a non-numeric id",
-        async () => {
-            const res = await get(
-                "/v1/users/not-a-number",
-            );
 
-            expect(res.status).toBe(422);
-        },
-    );
+describe("PATCH /v1/users/:id/password", () => {
+    it("requires authentication", async () => {
+        const auth = await createUser({
+            email: `password.${testEmail}`,
+        });
+
+        const res = await patch(
+            `/v1/users/${auth.user.id}/password`,
+            { password: "newPassword123" },
+        );
+
+        expect(res.status).toBe(401);
+    });
+
+    it("updates the password through the dedicated endpoint", async () => {
+        const auth = await createUser({
+            email: `password.${testEmail}`,
+        });
+
+        const res = await patch(
+            `/v1/users/${auth.user.id}/password`,
+            { password: "newPassword123" },
+            auth.accessToken,
+        );
+
+        expect(res.status).toBe(200);
+
+        const body = (await res.json()) as SuccessResponse<User>;
+
+        expect(body.data.id).toBe(auth.user.id);
+        expect(body.data.password).toBeUndefined();
+
+        const login = await post("/v1/auth/signin/email", {
+            email: `password.${testEmail}`,
+            password: "newPassword123",
+        });
+
+        expect(login.status).toBe(200);
+    });
+
+    it("does not allow changing another user's password", async () => {
+        const first = await createUser();
+
+        const second = await signup({
+            email: `password.${testEmail}`,
+            mobile: `8${String(runId).slice(-9)}`,
+        });
+
+        const res = await patch(
+            `/v1/users/${second.user.id}/password`,
+            { password: "newPassword123" },
+            first.accessToken,
+        );
+
+        expect(res.status).toBe(403);
+    });
+
+    it("returns 403 for a non-existent user because self middleware runs first", async () => {
+        const auth = await createUser();
+
+        const res = await patch(
+            "/v1/users/999999999/password",
+            { password: "newPassword123" },
+            auth.accessToken,
+        );
+
+        expect(res.status).toBe(403);
+    });
+
+    it("returns 400 for a non-numeric id", async () => {
+        const auth = await createUser();
+
+        const res = await patch(
+            "/v1/users/not-a-number/password",
+            { password: "newPassword123" },
+            auth.accessToken,
+        );
+
+        expect(res.status).toBe(400);
+    });
 });
 
-describe("PATCH /v1/users/:id validation", () => {
-    it(
-        "returns 422 for a non-numeric id",
-        async () => {
-            const res = await patch(
-                "/v1/users/not-a-number",
-                {
-                    name: "Invalid ID",
-                },
-            );
-
-            expect(res.status).toBe(422);
-        },
-    );
-
-    it(
-        "rejects an empty update",
-        async () => {
-            const user = await createTestUser();
-
-            const res = await patch(
-                `/v1/users/${user.id}`,
-                {},
-            );
-
-            expect(res.status).toBeGreaterThanOrEqual(400);
-            expect(res.status).toBeLessThan(500);
-        },
-    );
-});
 
 describe("DELETE /v1/users/:id", () => {
-    it(
-        "returns 404 for a non-existent user",
-        async () => {
-            const res = await del(
-                "/v1/users/999999999",
-            );
+    it("requires authentication", async () => {
+        const auth = await createUser();
 
-            expect(res.status).toBe(404);
-        },
-    );
+        const res = await del(
+            `/v1/users/${auth.user.id}`,
+        );
 
-    it(
-        "deletes the user successfully",
-        async () => {
-            const user = await createTestUser();
+        expect(res.status).toBe(401);
+    });
 
-            const res = await del(
-                `/v1/users/${user.id}`,
-            );
+    it("deletes the authenticated user successfully", async () => {
+        const auth = await createUser();
 
-            expect(res.status).toBe(200);
+        const res = await del(
+            `/v1/users/${auth.user.id}`,
+            auth.accessToken,
+        );
 
-            const body =
-                (await res.json()) as SuccessResponse<unknown>;
+        expect(res.status).toBe(200);
 
-            expect(body.status).toBe("success");
+        const body = (await res.json()) as SuccessResponse<unknown>;
 
-            const getRes = await get(
-                `/v1/users/${user.id}`,
-            );
+        expect(body.status).toBe("success");
 
-            expect(getRes.status).toBe(404);
-        },
-    );
+        const getRes = await get(
+            `/v1/users/${auth.user.id}`,
+            auth.accessToken,
+        );
 
-    it(
-        "does not delete another user",
-        async () => {
-            const firstUser = await createTestUser();
-            const secondEmail = `second.${testEmail}`;
+        expect(getRes.status).toBe(404);
+    });
 
-            const secondRes = await post("/v1/users", {
-                name: "Second User",
-                email: secondEmail,
-                password: "password123",
-                dialCode: "+91",
-                mobile: `7${String(runId).slice(-9)}`,
-            });
+    it("does not allow deleting another user", async () => {
+        const first = await createUser();
 
-            expect(secondRes.status).toBe(200);
+        const second = await signup({
+            email: `second.${testEmail}`,
+            mobile: `8${String(runId).slice(-9)}`,
+        });
 
-            const secondBody =
-                (await secondRes.json()) as SuccessResponse<User>;
+        const res = await del(
+            `/v1/users/${second.user.id}`,
+            first.accessToken,
+        );
 
-            const secondUser = secondBody.data;
+        expect(res.status).toBe(403);
 
-            const res = await del(
-                `/v1/users/${firstUser.id}`,
-            );
+        const secondGet = await get(
+            `/v1/users/${second.user.id}`,
+            second.accessToken,
+        );
 
-            expect(res.status).toBe(200);
+        expect(secondGet.status).toBe(200);
+    });
 
-            const secondGet = await get(
-                `/v1/users/${secondUser.id}`,
-            );
+    it("returns 403 when deleting a non-existent user because self middleware runs first", async () => {
+        const auth = await createUser();
 
-            expect(secondGet.status).toBe(200);
+        const res = await del(
+            "/v1/users/999999999",
+            auth.accessToken,
+        );
 
-            await db
-                .delete(users)
-                .where(eq(users.email, secondEmail));
-        },
-    );
+        expect(res.status).toBe(403);
+    });
 
-    it(
-        "returns 404 when deleting the same user twice",
-        async () => {
-            const user = await createTestUser();
+    it("returns 400 for a non-numeric id", async () => {
+        const auth = await createUser();
 
-            const firstRes = await del(
-                `/v1/users/${user.id}`,
-            );
+        const res = await del(
+            "/v1/users/not-a-number",
+            auth.accessToken,
+        );
 
-            expect(firstRes.status).toBe(200);
+        expect(res.status).toBe(400);
+    });
 
-            const secondRes = await del(
-                `/v1/users/${user.id}`,
-            );
+    it("returns 404 when deleting the same user twice", async () => {
+        const auth = await createUser();
 
-            expect(secondRes.status).toBe(404);
-        },
-    );
+        const first = await del(
+            `/v1/users/${auth.user.id}`,
+            auth.accessToken,
+        );
+
+        expect(first.status).toBe(200);
+
+        const second = await del(
+            `/v1/users/${auth.user.id}`,
+            auth.accessToken,
+        );
+
+        expect(second.status).toBe(404);
+    });
+});
+
+describe("POST /v1/users/create-admin", () => {
+    it("creates an admin user", async () => {
+        const email = `admin.${testEmail}`;
+
+        const res = await post("/v1/users/create-admin", {
+            name: "Admin User",
+            email,
+            password: testPassword,
+            dialCode: "+91",
+            mobile: `8${String(runId).slice(-9)}`,
+        });
+
+        expect(res.status).toBe(200);
+
+        const body = (await res.json()) as SuccessResponse<User>;
+
+        expect(body.status).toBe("success");
+        expect(body.data.email).toBe(email);
+        expect(body.data.role).toBe(UserRoles.ADMIN);
+        expect(body.data.password).toBeUndefined();
+    });
+});
+
+
+describe("PATCH /v1/users/:id role", () => {
+    it("changes a user's role through the admin endpoint", async () => {
+        const auth = await createUser();
+
+        const res = await patch(
+            `/v1/users/${auth.user.id}/role`,
+            { role: UserRoles.ADMIN },
+            auth.accessToken,
+        );
+
+        expect(res.status).toBe(200);
+
+        const body = (await res.json()) as SuccessResponse<User>;
+
+        expect(body.data.role).toBe(UserRoles.ADMIN);
+    });
 });
