@@ -1,8 +1,8 @@
 import { Elysia, t } from "elysia";
-import { UserRoles, type CreateUser, type UpdatePassword, type UpdateUser } from "./users.schema";
+import { type UpdatePassword, type UpdateUser } from "./users.schema";
 import { UsersService } from "./users.service";
 import { logError } from "../../utils/logger";
-import { usersPostValidator, usersUpdateValidator } from "./user.validate";
+import { usersUpdateValidator } from "./user.validate";
 import { HTTPCodes, MyError } from "../../utils/errorHandling";
 import { idValidator, passwordValidator } from "../../utils/validator";
 import { requireSelfMiddleware } from "../../middlewares";
