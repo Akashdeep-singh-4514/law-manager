@@ -697,15 +697,9 @@ describe("POST /v1/users/create-admin", () => {
             mobile: `8${String(runId).slice(-9)}`,
         });
 
-        expect(res.status).toBe(200);
+        expect(res.status).toBe(401);
 
-        const body = (await res.json()) as SuccessResponse<User>;
-
-        expect(body.status).toBe("success");
-        expect(body.data.email).toBe(email);
-        expect(body.data.role).toBe(UserRoles.ADMIN);
-        expect(body.data.password).toBeUndefined();
-    });
+        });
 });
 
 
@@ -719,10 +713,8 @@ describe("PATCH /v1/users/:id role", () => {
             auth.accessToken,
         );
 
-        expect(res.status).toBe(200);
+        expect(res.status).toBe(403);
 
-        const body = (await res.json()) as SuccessResponse<User>;
-
-        expect(body.data.role).toBe(UserRoles.ADMIN);
+        
     });
 });

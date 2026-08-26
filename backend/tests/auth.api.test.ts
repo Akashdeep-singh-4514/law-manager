@@ -143,13 +143,6 @@ async function cleanupByEmails(...emails: string[]) {
     }
 }
 
-beforeAll(async () => {
-    await connectDatabase();
-});
-
-afterAll(async () => {
-    await closeDatabase();
-});
 
 afterEach(async () => {
     await cleanupByEmails(
