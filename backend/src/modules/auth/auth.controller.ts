@@ -3,7 +3,8 @@ import { logError } from "../../utils/logger";
 import { userEmailLoginValidator, userMobileLoginValidator, usersPostValidator } from "../users/user.validate";
 import type { AuthResult, EmailLoginUser, LogoutInput, MobileLoginUser, RefreshTokenInput, TokenPair } from "./auth.schema";
 import { AuthService } from "./auth.service";
-import { authMiddleware } from "../../utils/middleware";
+import { authMiddleware } from "../../middlewares";
+
 
 const refreshTokenValidator = t.Object({
     refreshToken: t.String(),

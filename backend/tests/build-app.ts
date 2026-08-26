@@ -1,6 +1,7 @@
 import { Elysia } from "elysia";
 import { mainRouter } from "../src/router";
-import { responseMiddleware } from "../src/utils/middleware";
+import { responseMiddleware } from "../src/middlewares";
+
 
 /**
  * Builds an Elysia app instance for tests.

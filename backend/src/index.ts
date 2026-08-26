@@ -6,8 +6,8 @@ import { connectDatabase, closeDatabase } from "./db";
 import { runMigrations } from "./db/migrate";
 import { runSeeders } from "./db/seed";
 import { logError } from "./utils/logger";
-import { responseMiddleware } from "./utils/middleware";
 import { cors } from '@elysia/cors'
+import { responseMiddleware } from "./middlewares";
 
 async function bootstrap() {
     try {

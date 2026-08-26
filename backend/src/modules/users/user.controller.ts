@@ -5,7 +5,8 @@ import { logError } from "../../utils/logger";
 import { usersPostValidator, usersUpdateValidator } from "./user.validate";
 import { HTTPCodes, MyError } from "../../utils/errorHandling";
 import { idValidator, passwordValidator } from "../../utils/validator";
-import { requireSelfMiddleware } from "../../utils/middleware";
+import { requireSelfMiddleware } from "../../middlewares";
+
 
 export class UsersController {
     private readonly usersService: UsersService;
@@ -127,47 +128,5 @@ export class UsersController {
                     params: idValidator,
                 },
             );
-    }
-}
-export class AdminController {
-    private readonly usersService: UsersService;
-
-    constructor() {
-        this.usersService = new UsersService();
-    }
-    getRoutes() {
-        return new Elysia({
-            prefix: "/users",
-        }).post("/create-admin", async ({ body }) => {
-            try {
-                const res = await this.usersService.postUser(body as CreateUser, UserRoles.ADMIN);
-
-                return res;
-            } catch (e) {
-                logError(e, "creating admin");
-                throw e;
-            }
-        },
-            {
-                body: usersPostValidator,
-            },)
-            .patch("/:id/role", async ({ params, body }) => {
-                try {
-                    if (!params.id) {
-                        throw new MyError("id is required", HTTPCodes.BAD_REQUEST);
-                    }
-                    const res = await this.usersService.changeRole(params.id,body );
-
-                    return res;
-                } catch (e) {
-                    logError(e, "updating role");
-                    throw e;
-                }
-            }, {
-                body: t.Object({
-                    role: t.Enum(UserRoles)
-                }),
-                params: idValidator,
-            },)
     }
 }
