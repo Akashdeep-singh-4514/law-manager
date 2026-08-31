@@ -3,6 +3,7 @@ import {
     booleanValidator,
     dialCodeValidator,
     emailValidator,
+    genderValidator,
     mobileValidator,
     nameValidator,
     passwordValidator,
@@ -17,6 +18,7 @@ export const usersPostValidator = t.Object({
     devices: t.Optional(stringArrayValidator()),
     dialCode: dialCodeValidator(),
     mobile: mobileValidator(),
+    genderId: genderValidator(),
 });
 
 export const usersUpdateValidator = t.Object({
@@ -26,6 +28,7 @@ export const usersUpdateValidator = t.Object({
     devices: t.Optional(stringArrayValidator()),
     dialCode: t.Optional(dialCodeValidator()),
     mobile: t.Optional(mobileValidator()),
+    genderId: t.Optional(genderValidator()),
 });
 
 export const userEmailLoginValidator = t.Object({

@@ -12,14 +12,9 @@ export function isRoleRequest(request: Request): boolean {
     return url.pathname.includes("/role");
 }
 
-export function ensureCanManageRoles(
-    user: AccessTokenPayload,
-): void {
+export function ensureCanManageRoles(user: AccessTokenPayload): void {
     if (user.role === UserRoles.USER) {
-        throw new MyError(
-            "you do not have permission to change roles",
-            HTTPCodes.FORBIDDEN,
-        );
+        throw new MyError("you do not have permission to change roles", HTTPCodes.FORBIDDEN);
     }
 }
 
@@ -30,30 +25,20 @@ export async function ensureCanModifyTargetUser(
     const targetUser = await usersRepository.findById(targetUserId);
 
     if (!targetUser) {
-        throw new MyError(
-            "user not found",
-            HTTPCodes.NOT_FOUND,
-        );
+        throw new MyError("user not found", HTTPCodes.NOT_FOUND);
     }
 
-    if (
-        targetUser.email === env.adminConf.email &&
-        targetUser.email !== user.email
-    ) {
-        throw new MyError(
-            "you do not have permission to modify this user",
-            HTTPCodes.FORBIDDEN,
-        );
+    if (targetUser.email === env.adminConf.email && targetUser.email !== user.email) {
+        throw new MyError("you do not have permission to modify this user", HTTPCodes.FORBIDDEN);
     }
 }
 
-// NOTE: assumes UserRoles has an ADMIN member. If you have more than one
-// elevated tier (e.g. ADMIN + SUPERADMIN), swap this for a rank/allowlist
-// check instead of a single equality check.
-export function ensureIsAdmin(
-    user: AccessTokenPayload,
-): void {
-    if (user.role !== UserRoles.ADMIN) {
+export function ensureIsAdmin(user: AccessTokenPayload): void {
+    if (!user) {
+        throw new MyError("Authentication required", HTTPCodes.UNAUTHORIZED);
+    }
+
+    if (user.role === UserRoles.USER) {
         throw new MyError(
             "admin privileges are required to access this resource",
             HTTPCodes.FORBIDDEN,

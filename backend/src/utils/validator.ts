@@ -12,6 +12,15 @@ if (!FormatRegistry.Has("email")) {
 export const idValidator = t.Object({
     id: t.Number({ minimum: 1 })
 });
+
+export const genderValidator = () => {
+  return t.Number({
+    minimum: 1,
+    maximum:3
+  });
+}
+
+
 export function stringValidator(field:string) {
     return t.String({
         minLength: 1,

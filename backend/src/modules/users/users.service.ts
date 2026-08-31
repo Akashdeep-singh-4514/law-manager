@@ -1,14 +1,24 @@
-import { hashPassword } from "../../utils/bcrypt";
+import { comparePassword, hashPassword } from "../../utils/bcrypt";
 import { HTTPCodes, MyError } from "../../utils/errorHandling";
+import type { AccessTokenPayload } from "../../utils/jwt";
+import { GendersService } from "../genders/gender.service";
 import { UsersRepository } from "./users.repository";
-import { UserRoles, type CreateUser, type PublicUser, type UpdatePassword, type UpdateUser } from "./users.schema";
+import {
+    UserRoles,
+    type CreateUser,
+    type PublicUser,
+    type UpdatePassword,
+    type UpdateUser,
+} from "./users.schema";
 import { NotFoundError } from "elysia";
 
 export class UsersService {
     private readonly usersRepository: UsersRepository;
+    private readonly gendersService: GendersService;
 
     constructor() {
-        this.usersRepository = new UsersRepository();
+      this.usersRepository = new UsersRepository();
+      this.gendersService = new GendersService();
     }
 
     async getUsers() {
@@ -26,13 +36,18 @@ export class UsersService {
 
     async postUser(user: CreateUser, role?: UserRoles): Promise<PublicUser | null> {
         const password = await hashPassword(user.password);
+        const gender = await this.gendersService.getGenderById(Number(user?.genderId));
+        if (!gender) {
+            throw new MyError("cannot find gender");
+        }
         const newUser = {
             name: user.name,
             email: user.email,
             dialCode: user.dialCode,
             mobile: user.mobile,
             password: password,
-            role: role ?? UserRoles.USER
+            gender,
+            role: role ?? UserRoles.USER,
         };
         if (await this.usersRepository.findByEmail(user.email)) {
             throw new MyError("email already exists", HTTPCodes.CONFLICT);
@@ -76,18 +91,40 @@ export class UsersService {
             }
         }
 
+      const gender = await this.gendersService.getGenderById(Number(user?.genderId));
+        if (!gender) {
+            throw new MyError("cannot find gender");
+        }
         const updateData = {
             name: user.name,
             email: user.email,
             dialCode: user.dialCode,
             mobile: user.mobile,
             isActive: user.isActive,
+            gender,
         };
 
         return await this.usersRepository.update(id, updateData);
     }
-    async updatePassword(id: number, data: UpdatePassword): Promise<PublicUser | null> {
+
+    async updatePassword(
+        id: number,
+        data: UpdatePassword,
+        user: AccessTokenPayload,
+    ): Promise<PublicUser | null> {
+        const existingUser = await this.usersRepository.findByIdUnsafe(id);
+        if (!existingUser) {
+            throw new MyError("user not found", HTTPCodes.NOT_FOUND);
+        }
+        if (user.role === UserRoles.USER) {
+            const oldPassword = data.oldPassword;
+            const matched = await comparePassword(existingUser?.password, oldPassword);
+            if (!matched) {
+                throw new MyError("invalid credential", HTTPCodes.UNAUTHORIZED);
+            }
+        }
         const password = await hashPassword(data.password);
+
         return await this.usersRepository.update(id, { password: password });
     }
 
@@ -117,6 +154,6 @@ export class UsersService {
     }
 
     async changeRole(id: number, body: { role: UserRoles }) {
-        return await this.usersRepository.update(id, { role:body.role });
+        return await this.usersRepository.update(id, { role: body.role });
     }
 }

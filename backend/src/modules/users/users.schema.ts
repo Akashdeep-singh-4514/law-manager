@@ -73,5 +73,6 @@ export type UpdateUser = {
 }
 
 export type UpdatePassword = {
-    password: string
+    password: string,
+    oldPassword:string
 }

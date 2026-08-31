@@ -1,11 +1,11 @@
 import { Elysia, t } from "elysia";
-import { type UpdatePassword, type UpdateUser } from "./users.schema";
+import { type CreateUser, type UpdatePassword, type UpdateUser } from "./users.schema";
 import { UsersService } from "./users.service";
 import { logError } from "../../utils/logger";
-import { usersUpdateValidator } from "./user.validate";
+import { usersPostValidator, usersUpdateValidator } from "./user.validate";
 import { HTTPCodes, MyError } from "../../utils/errorHandling";
 import { idValidator, passwordValidator } from "../../utils/validator";
-import { requireSelfMiddleware } from "../../middlewares";
+import { authMiddleware, requireAdmin, requireSelfMiddleware } from "../../middlewares";
 
 
 export class UsersController {
@@ -15,10 +15,13 @@ export class UsersController {
         this.usersService = new UsersService();
     }
 
+
+
     getRoutes() {
         return new Elysia({
             prefix: "/users",
         })
+            .use(authMiddleware)
             .get("/", async () => {
                 try {
                     return await this.usersService.getUsers();
@@ -27,22 +30,23 @@ export class UsersController {
                     throw e;
                 }
             })
-            // .post(
-            //     "/",
-            //     async ({ body }) => {
-            //         try {
-            //             const res = await this.usersService.postUser(body as CreateUser);
+            .post(
+                "/",
+                async ({ body }) => {
+                    try {
+                        const res = await this.usersService.postUser(body as CreateUser);
 
-            //             return res;
-            //         } catch (e) {
-            //             logError(e, "creating user");
-            //             throw e;
-            //         }
-            //     },
-            //     {
-            //         body: usersPostValidator,
-            //     },
-            // )
+                        return res;
+                    } catch (e) {
+                        logError(e, "creating user");
+                        throw e;
+                    }
+                },
+                {
+                    body: usersPostValidator,
+                    beforeHandle:requireAdmin,
+                },
+            )
             .use(requireSelfMiddleware)
             .get(
                 "/:id",
@@ -86,14 +90,15 @@ export class UsersController {
             )
             .patch(
                 "/:id/password",
-                async ({ body, params }) => {
+                async ({ body, params,user }) => {
                     try {
                         if (!params.id) {
                             throw new MyError("id is required", HTTPCodes.BAD_REQUEST);
                         }
                         const res = await this.usersService.updatePassword(
                             Number(params.id),
-                            body as UpdatePassword,
+                          body as UpdatePassword,
+                            user
                         );
 
                         return res;

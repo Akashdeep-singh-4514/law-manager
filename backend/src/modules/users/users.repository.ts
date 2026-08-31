@@ -20,6 +20,12 @@ export class UsersRepository {
         return (result[0] as PublicUser) ?? null;
     }
 
+    async findByIdUnsafe(id: number): Promise<User | null> {
+        const result = await db.select(allColumns).from(users).where(eq(users.id, id)).limit(1);
+
+        return result[0] ?? null;
+    }
+
     async findByEmail(email: string): Promise<PublicUser | null> {
         const result = await db
             .select(safeColumns)
