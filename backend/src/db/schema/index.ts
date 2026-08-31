@@ -1,4 +1,4 @@
-import { users,UserRoleEnum } from "../../modules/users/users.schema";
+import { users, UserRoleEnum } from "../../modules/users/users.schema";
 import { refreshTokens } from "../../modules/refresh/refresh.schema";
-
-export { users, UserRoleEnum, refreshTokens }
+import { genders } from "../../modules/genders/gender.schema";
+export { users, UserRoleEnum, refreshTokens, genders }

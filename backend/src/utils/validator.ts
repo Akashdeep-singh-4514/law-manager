@@ -12,7 +12,13 @@ if (!FormatRegistry.Has("email")) {
 export const idValidator = t.Object({
     id: t.Number({ minimum: 1 })
 });
-
+export function stringValidator(field:string) {
+    return t.String({
+        minLength: 1,
+        maxLength: 255,
+        error: `${field} is required and must be under 255 characters`,
+    });
+}
 export function nameValidator() {
     return t.String({
         minLength: 1,

@@ -1,5 +1,6 @@
 import {
     boolean,
+    integer,
     pgEnum,
     pgTable,
     serial,
@@ -7,6 +8,8 @@ import {
     timestamp,
     unique,
 } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
+import { genders } from "../genders/gender.schema";
 
 export enum UserRoles {
     SUPERADMIN = "super_admin",
@@ -26,6 +29,9 @@ export const users = pgTable("users", {
     role: UserRoleEnum("role").notNull().default(UserRoles.USER),
     mobile: text("mobile").notNull(),
     devices: text("devices").array().default([]).notNull(),
+    genderId: integer("gender_id").references(() => genders.id, {
+        onDelete: "set null",
+    }),
     createdAt: timestamp("created_at")
         .defaultNow()
         .notNull(),
@@ -37,6 +43,13 @@ export const users = pgTable("users", {
     dialCodeMobileUnique: unique().on(table.dialCode, table.mobile),
 }));
 
+export const usersRelations = relations(users, ({ one }) => ({
+    gender: one(genders, {
+        fields: [users.genderId],
+        references: [genders.id],
+    }),
+}));
+
 export type User = typeof users.$inferSelect;
 export type PublicUser = Omit<User, "password">;
 export type CreateUser = {
@@ -45,6 +58,7 @@ export type CreateUser = {
     password: string;
     dialCode: string;
     mobile: string;
+    genderId?: number;
 }
 
 export type UpdateUser = {
@@ -55,6 +69,7 @@ export type UpdateUser = {
     isActive?: boolean
     role?:UserRoles,
     password?: string
+    genderId?: number;
 }
 
 export type UpdatePassword = {
