@@ -109,7 +109,8 @@ export class UsersController {
                 },
                 {
                     body: t.Object({
-                        password: passwordValidator(),
+                      password: passwordValidator(),
+                      oldPassword:t.Optional(passwordValidator())
                     }),
                     params: idValidator,
                 },

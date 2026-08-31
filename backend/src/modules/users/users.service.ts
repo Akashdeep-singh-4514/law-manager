@@ -117,7 +117,11 @@ export class UsersService {
             throw new MyError("user not found", HTTPCodes.NOT_FOUND);
         }
         if (user.role === UserRoles.USER) {
-            const oldPassword = data.oldPassword;
+          const oldPassword = data.oldPassword;
+          if (!oldPassword) {
+            throw new MyError("old password required", HTTPCodes.BAD_REQUEST);
+
+          }
             const matched = await comparePassword(existingUser?.password, oldPassword);
             if (!matched) {
                 throw new MyError("invalid credential", HTTPCodes.UNAUTHORIZED);
