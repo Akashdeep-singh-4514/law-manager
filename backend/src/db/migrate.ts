@@ -29,9 +29,11 @@ async function main() {
     return;
 }
 
-main().catch((err) => {
-    logError(err, "Migrations");
-    process.exit(1);
-});
+if (import.meta.main) {
+    main().catch((err) => {
+        logError(err, "Migrations");
+        process.exit(1);
+    });
+}
 
 export { runMigrations };

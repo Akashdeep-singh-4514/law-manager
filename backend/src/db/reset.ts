@@ -31,9 +31,6 @@ async function resetDatabase() {
         info("Dropping public schema...");
         await db.execute(sql`DROP SCHEMA public CASCADE;`);
         await db.execute(sql`CREATE SCHEMA public;`);
-        info("Dropping public schema...");
-        await db.execute(sql`DROP SCHEMA public CASCADE;`);
-        await db.execute(sql`CREATE SCHEMA public;`);
 
         info("Dropping drizzle metadata schema...");
         await db.execute(sql`DROP SCHEMA IF EXISTS drizzle CASCADE;`);
@@ -52,4 +49,6 @@ async function resetDatabase() {
     }
 }
 
-resetDatabase();
+if (import.meta.main) {
+    resetDatabase();
+}
